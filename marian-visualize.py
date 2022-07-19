@@ -4,22 +4,25 @@ import argparse
 import datetime
 import pickle
 import sys
-import tensorboardX as tb
+import tensorboard as tb
+import tensorboardX as tbx
 import time
 
 
-class MarianLogReader(object):
-    def __init__(self):
-        pass
+class LogFileReader(object):
+    def __init__(self, parser):
+        self.parser = parser
 
-    def parse_file(self, path):
+    def read(self, path):
         with open(path, "r", encoding="utf-8") as logs:
             for line in logs:
-                output = self.parse_line(line)
+                output = self.parser.parse_line(line)
                 if output:
                     sys.stderr.write(f"{output}\n")
                     yield output
 
+
+class MarianLogParser(object):
     def parse_line(self, line):
         if "[valid]" in line:
             (
@@ -47,19 +50,16 @@ class MarianLogReader(object):
 
 
 class LogWriter(object):
-    def __init__(self):
-        pass
+    def write(self, time, update, metric, value):
+        raise NotImplemented
 
 
 class TensorboardWriter(LogWriter):
     def __init__(self, path):
-        self.writer = tb.SummaryWriter(path)
+        self.writer = tbx.SummaryWriter(path)
 
-    def write(self, timestamp, update, metric, value):
+    def write(self, time, update, metric, value):
         self.writer.add_scalar(f"valid/{metric}", value, update, 123)
-
-    def close(self):
-        self.writer.close()
 
 
 class AzureMLMetricsWriter(LogWriter):
@@ -69,22 +69,32 @@ class AzureMLMetricsWriter(LogWriter):
 def main():
     args = parse_user_args()
 
-    reader = MarianLogReader()
-    writer = TensorboardWriter(args.log_dir)
-    for tup in reader.parse_file(args.log_file):
+    reader = LogFileReader(parser=MarianLogParser())
+    writer = TensorboardWriter(args.tb_logdir)
+    for tup in reader.read(args.log_file):
         writer.write(*tup)
+
+    if args.offline:
+        print("Done")
+    else:
+        print(f"Starting TensorBoard ...")
+        tb_server = tb.program.TensorBoard()
+        tb_server.configure(
+            argv=[None, '--logdir', args.tb_logdir, '--port', str(args.tb_port)]
+        )
+        tb_server.main()
 
 
 def parse_user_args():
     parser = argparse.ArgumentParser()
     parser.add_argument("--log-file", help="path to train.log", default="train.log")
     parser.add_argument(
-        "--log-dir", help="logging directory for tensorboard", default="logdir"
+        "--tb-logdir", help="TensorBoard logging directory", default="logdir"
     )
-    parser.add_argument("--port", help="", default="logdir")
     parser.add_argument(
-        "--update-freq", help="update frequency in seconds", type=int, default=5
+        "--tb-port", help="port number for tensorboard", type=int, default=6006
     )
+    parser.add_argument("--offline", help="visualize", action="store_true")
     return parser.parse_args()
 
 
