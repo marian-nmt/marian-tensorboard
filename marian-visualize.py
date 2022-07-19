@@ -26,7 +26,9 @@ class LogFileReader(object):
 
         self._load_state()
 
-        sys.stderr.write(f"Log file {self.log_file} last updated at {self.last_update}\n")
+        sys.stderr.write(
+            f"Log file {self.log_file} last updated at {self.last_update}\n"
+        )
         sys.stderr.write(f"Previously processed lines: {self.last_line}\n")
 
     def read(self):
@@ -110,35 +112,78 @@ class AzureMLMetricsWriter(LogWriter):
     pass
 
 
+class ConvertionJob(threading.Thread):
+    def __init__(self, log_file, work_dir, update_freq=5):
+        threading.Thread.__init__(self)
+
+        # The shutdown_flag is a threading.Event object that
+        # indicates whether the thread should be terminated.
+        self.shutdown_flag = threading.Event()
+
+        self.log_file = log_file
+        self.work_dir = work_dir
+        self.update_freq = update_freq
+
+    def run(self):
+        print(f"Thread #{self.ident} handling {self.log_file} started")
+
+        log_dir = Path(self.work_dir) / Path(self.log_file).stem
+        reader = LogFileReader(
+            path=self.log_file, workdir=log_dir, parser=MarianLogParser()
+        )
+        writer = TensorboardWriter(log_dir)
+
+        for tup in reader.read():
+            writer.write(*tup)
+
+        while self.update_freq > 0 and not self.shutdown_flag.is_set():
+            for tup in reader.read():
+                writer.write(*tup)
+            time.sleep(self.update_freq)
+
+        print(f"Thread #{self.ident} stopped")
+
+
+class ServiceExit(Exception):
+    pass
+
+
 def main():
     args = parse_user_args()
-    
-    # signal.signal(signal.SIGTERM, service_shutdown)
-    # signal.signal(signal.SIGINT, service_shutdown)
 
-    threads = []
-    for log_file in args.log_file:
-        thread = threading.Thread(target=setup_convertion, args=([log_file, args.tb_logdir]))
-        threads.append(thread)
-        thread.start()
+    def service_shutdown(signum, frame):
+        raise ServiceExit
 
-    if args.offline:
-        for thread in threads:
-            thread.join()
-        print("Done")
-        exit()
+    signal.signal(signal.SIGTERM, service_shutdown)
+    signal.signal(signal.SIGINT, service_shutdown)
 
-    print(f"Starting TensorBoard...")
-    launch_tensorboard(args)
+    try:
+        jobs = []
+        for log_file in args.log_file:
+            update_freq = 0 if args.offline else 5
+            job = ConvertionJob(log_file, args.tb_logdir, update_freq)
+            job.start()
+            jobs.append(job)
 
-    for thread in threads:
-        thread.join()
+        if args.offline:
+            for job in jobs:
+                job.join()
+            print("Done")
+
+        print(f"Starting TensorBoard...")
+        launch_tensorboard(args)
+
+        while True:  # Keep the main thread running so that signals are not ignored
+            time.sleep(0.5)
+
+    except ServiceExit:
+        print("Exiting... it may take a few seconds")
+        for job in jobs:
+            job.shutdown_flag.set()
+        for job in jobs:
+            job.join()
+
     print("Done")
-
-
-# def service_shutdown(signum, frame):
-    # print('Caught signal %d' % signum)
-    # raise ServiceExit
 
 
 def setup_convertion(log_file, work_dir):
@@ -156,7 +201,8 @@ def launch_tensorboard(args):
     tb_server.configure(
         argv=[None, '--logdir', args.tb_logdir, '--port', str(args.tb_port)]
     )
-    tb_server.main()
+    # tb_server.main()
+    tb_server.launch()
 
 
 def parse_user_args():
