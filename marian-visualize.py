@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse
+import calendar
 import datetime
 import sys
 import tensorboard as tb
@@ -25,14 +26,15 @@ class LogFileReader(object):
 
 class MarianLogParser(object):
     """Parser for Marian logs."""
+
     def parse_line(self, line):
         """
         Parses a log line and returns tuple(s) of (time, update, metric, value).
         """
         if "[valid]" in line:
             (
-                _,
-                _,
+                _date,
+                _time,
                 _,
                 _ep,
                 ep,
@@ -50,7 +52,10 @@ class MarianLogParser(object):
             ) = line.split()
             update = int(up)
             value = float(value)
-            yield (datetime.datetime.now(), update, metric, value)
+            yield (self.wall_time(_date + " " + _time), update, metric, value)
+
+    def wall_time(self, string):
+        return calendar.timegm(time.strptime(string, "[%Y-%m-%d %H:%M:%S]"))
 
 
 class LogWriter(object):
@@ -63,7 +68,7 @@ class TensorboardWriter(LogWriter):
         self.writer = tbx.SummaryWriter(path)
 
     def write(self, time, update, metric, value):
-        self.writer.add_scalar(f"valid/{metric}", value, update, 123)
+        self.writer.add_scalar(f"valid/{metric}", value, update, time)
 
 
 class AzureMLMetricsWriter(LogWriter):
@@ -92,6 +97,7 @@ def main():
     # Do other stuff...
 
     # thread.join()
+    print("Done")
 
 
 def launch_tensorboard(args):
