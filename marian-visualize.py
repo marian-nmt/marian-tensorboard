@@ -2,6 +2,7 @@
 
 import argparse
 import calendar
+import logging
 import pickle
 import signal
 import sys
@@ -11,6 +12,10 @@ import threading
 import time
 
 from pathlib import Path
+
+# Setup logger suppressing logging from external modules
+logger = logging.getLogger("marian-visualize")
+logging.basicConfig(level=logging.ERROR)
 
 
 class LogFileReader(object):
@@ -28,21 +33,24 @@ class LogFileReader(object):
 
         self._load_state()
 
-        sys.stderr.write(
-            f"Log file {self.log_file} last updated at {self.last_update}\n"
+        logger.info(
+            f"Log file {self.log_file} "
+            + f"last updated at {self.last_update}, "
+            + f"previously processed lines: {self.last_line}"
         )
-        sys.stderr.write(f"Previously processed lines: {self.last_line}\n")
 
     def read(self):
         """Reads new lines added since the last read."""
         if not self._need_update():
-            sys.stderr.write(f"No need to update {self.log_file}...\n")
+            logger.debug(f"No need to update {self.log_file}")
             return
         with open(self.log_file, "r", encoding="utf-8") as logs:
             for line_no, line in enumerate(logs):
                 if self.last_line and self.last_line < line_no:
                     for output in self.parser.parse_line(line):
-                        sys.stderr.write(f"{output}\n")
+                        logger.debug(
+                            f"{self.log_file}:{line_no} produced {output}"
+                        )
                         yield output
                 self.last_line = line_no
                 self.last_update = self.log_file.stat().st_mtime
@@ -134,7 +142,7 @@ class ConvertionJob(threading.Thread):
 
     def run(self):
         """Runs the convertion job."""
-        print(f"Thread #{self.ident} handling {self.log_file} started")
+        logging.debug(f"Thread #{self.ident} handling {self.log_file} started")
 
         log_dir = Path(self.work_dir) / Path(self.log_file).stem
         reader = LogFileReader(
@@ -150,7 +158,7 @@ class ConvertionJob(threading.Thread):
                 writer.write(*tup)
             time.sleep(self.update_freq)
 
-        print(f"Thread #{self.ident} stopped")
+        logging.debug(f"Thread #{self.ident} stopped")
 
 
 class ServiceExit(Exception):
@@ -181,22 +189,22 @@ def main():
         if args.offline:
             for job in jobs:
                 job.join()
-            print("Done")
+            logger.info("Done")
 
-        print("Starting TensorBoard server...")
+        logger.info("Starting TensorBoard server...")
         launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
 
     except ServiceExit:
-        print("Exiting... it may take a few seconds")
+        logger.info("Exiting... it may take a few seconds")
         for job in jobs:
             job.shutdown_flag.set()
         for job in jobs:
             job.join()
 
-    print("Done")
+    logger.info("Done")
 
 
 def launch_tensorboard(logdir, port):
@@ -216,8 +224,17 @@ def parse_user_args():
     parser.add_argument(
         "-p", "--port", help="port number for tensorboard", type=int, default=6006
     )
-    parser.add_argument("--offline", help="visualize", action="store_true")
-    return parser.parse_args()
+    parser.add_argument(
+        "--offline", help="do not monitor logs for updates", action="store_true"
+    )
+    parser.add_argument("--debug", help="be more verbose", action="store_true")
+    args = parser.parse_args()
+
+    if args.debug:
+        logging.getLogger("marian-visualize").setLevel(logging.DEBUG)
+    else:
+        logging.getLogger("marian-visualize").setLevel(logging.INFO)
+    return args
 
 
 if __name__ == "__main__":
