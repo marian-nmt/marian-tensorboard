@@ -14,6 +14,8 @@ from pathlib import Path
 
 
 class LogFileReader(object):
+    """Reader for log files in a text format."""
+
     def __init__(self, path, parser, workdir):
         self.log_file = Path(path)
         self.parser = parser
@@ -32,6 +34,7 @@ class LogFileReader(object):
         sys.stderr.write(f"Previously processed lines: {self.last_line}\n")
 
     def read(self):
+        """Reads new lines added since the last read."""
         if not self._need_update():
             sys.stderr.write(f"No need to update {self.log_file}...\n")
             return
@@ -46,10 +49,9 @@ class LogFileReader(object):
             self._save_state()
 
     def _load_state(self):
-        if not Path(self.state_file).exists():
-            return
-        with open(self.state_file, "rb") as fstate:
-            self.last_update, self.last_line = pickle.load(fstate)
+        if Path(self.state_file).exists():
+            with open(self.state_file, "rb") as fstate:
+                self.last_update, self.last_line = pickle.load(fstate)
 
     def _save_state(self):
         with open(self.state_file, "wb") as fstate:
@@ -65,9 +67,7 @@ class MarianLogParser(object):
     """Parser for Marian logs."""
 
     def parse_line(self, line):
-        """
-        Parses a log line and returns tuple(s) of (time, update, metric, value).
-        """
+        """Parses a log line and returns tuple(s) of (time, update, metric, value)."""
         if "[valid]" in line:
             (
                 _date,
@@ -96,11 +96,15 @@ class MarianLogParser(object):
 
 
 class LogWriter(object):
+    """Template class for logging writers."""
+
     def write(self, time, update, metric, value):
         raise NotImplemented
 
 
 class TensorboardWriter(LogWriter):
+    """Writing logs for TensorBoard using TensorboardX."""
+
     def __init__(self, path):
         self.writer = tbx.SummaryWriter(path)
 
@@ -109,10 +113,14 @@ class TensorboardWriter(LogWriter):
 
 
 class AzureMLMetricsWriter(LogWriter):
+    """Writing logs for Azure ML metrics."""
+
     pass
 
 
 class ConvertionJob(threading.Thread):
+    """Job connecting logging readers and writers in a subthread."""
+
     def __init__(self, log_file, work_dir, update_freq=5):
         threading.Thread.__init__(self)
 
@@ -125,6 +133,7 @@ class ConvertionJob(threading.Thread):
         self.update_freq = update_freq
 
     def run(self):
+        """Runs the convertion job."""
         print(f"Thread #{self.ident} handling {self.log_file} started")
 
         log_dir = Path(self.work_dir) / Path(self.log_file).stem
@@ -145,12 +154,15 @@ class ConvertionJob(threading.Thread):
 
 
 class ServiceExit(Exception):
+    """Custom exception for signal handling."""
+
     pass
 
 
 def main():
     args = parse_user_args()
 
+    # Setup signal handling
     def service_shutdown(signum, frame):
         raise ServiceExit
 
@@ -158,10 +170,11 @@ def main():
     signal.signal(signal.SIGINT, service_shutdown)
 
     try:
+        # Create a convertion job for each log file
         jobs = []
         for log_file in args.log_file:
             update_freq = 0 if args.offline else 5
-            job = ConvertionJob(log_file, args.tb_logdir, update_freq)
+            job = ConvertionJob(log_file, args.work_dir, update_freq)
             job.start()
             jobs.append(job)
 
@@ -170,8 +183,8 @@ def main():
                 job.join()
             print("Done")
 
-        print(f"Starting TensorBoard...")
-        launch_tensorboard(args)
+        print("Starting TensorBoard server...")
+        launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
@@ -186,33 +199,22 @@ def main():
     print("Done")
 
 
-def setup_convertion(log_file, work_dir):
-    log_dir = Path(work_dir) / Path(log_file).stem
-    reader = LogFileReader(path=log_file, workdir=log_dir, parser=MarianLogParser())
-    writer = TensorboardWriter(log_dir)
-    while True:
-        for tup in reader.read():
-            writer.write(*tup)
-        time.sleep(5)
-
-
-def launch_tensorboard(args):
+def launch_tensorboard(logdir, port):
+    """Launches TensorBoard server."""
     tb_server = tb.program.TensorBoard()
-    tb_server.configure(
-        argv=[None, '--logdir', args.tb_logdir, '--port', str(args.tb_port)]
-    )
-    # tb_server.main()
+    tb_server.configure(argv=[None, '--logdir', logdir, '--port', str(port)])
     tb_server.launch()
 
 
 def parse_user_args():
+    """Defines and parses user command line options."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("--log-file", nargs="+", help="path to train.log files")
+    parser.add_argument("-f", "--log-file", nargs="+", help="path to train.log files")
     parser.add_argument(
-        "--tb-logdir", help="TensorBoard logging directory", default="logdir"
+        "-w", "--work-dir", help="TensorBoard logging directory", default="logdir"
     )
     parser.add_argument(
-        "--tb-port", help="port number for tensorboard", type=int, default=6006
+        "-p", "--port", help="port number for tensorboard", type=int, default=6006
     )
     parser.add_argument("--offline", help="visualize", action="store_true")
     return parser.parse_args()
