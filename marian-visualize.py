@@ -91,12 +91,16 @@ class MarianLogParser(object):
             metric = "valid_{}".format(m.group("metric"))
             value = float(m.group("value"))
             stalled = int(m.group("stalled") or 0)
-            yield (self.wall_time(_date + " " + _time), update, "epoch", epoch)
-            yield (self.wall_time(_date + " " + _time), update, metric, value)
             yield (
                 self.wall_time(_date + " " + _time),
                 update,
-                f"{metric}_stalled",
+                f"valid/{metric}",
+                value,
+            )
+            yield (
+                self.wall_time(_date + " " + _time),
+                update,
+                f"valid/{metric}_stalled",
                 stalled,
             )
 
@@ -111,18 +115,23 @@ class MarianLogParser(object):
             sentences = int(str(m.group("sentences")).replace(",", ""))
             metric = "train_{}".format(m.group("metric"))
             value = float(m.group("value"))
-            yield (self.wall_time(_date + " " + _time), update, "epoch", epoch)
-            yield (self.wall_time(_date + " " + _time), update, metric, value)
+            yield (self.wall_time(_date + " " + _time), update, "train/epoch", epoch)
             yield (
                 self.wall_time(_date + " " + _time),
                 update,
-                "per_update_train_sent",
+                f"train/{metric}",
+                value,
+            )
+            yield (
+                self.wall_time(_date + " " + _time),
+                update,
+                f"train/update_sent",
                 sentences,
             )
             yield (
                 self.wall_time(_date + " " + _time),
                 update,
-                "total_train_sent",
+                f"train/total_sent",
                 sentences + self.total_sentences,
             )
 
@@ -150,7 +159,7 @@ class TensorboardWriter(LogWriter):
         self.writer = tbx.SummaryWriter(path)
 
     def write(self, time, update, metric, value):
-        self.writer.add_scalar(f"valid/{metric}", value, update, time)
+        self.writer.add_scalar(metric, value, update, time)
 
 
 class AzureMLMetricsWriter(LogWriter):
@@ -243,7 +252,7 @@ def main():
 def launch_tensorboard(logdir, port):
     """Launches TensorBoard server."""
     tb_server = tb.program.TensorBoard()
-    tb_server.configure(argv=[None, '--logdir', logdir, '--port', str(port)])
+    tb_server.configure(argv=[None, "--logdir", logdir, "--port", str(port)])
     tb_server.launch()
 
 
