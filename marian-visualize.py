@@ -49,9 +49,7 @@ class LogFileReader(object):
             for line_no, line in enumerate(logs):
                 if self.last_line and self.last_line < line_no:
                     for output in self.parser.parse_line(line):
-                        logger.debug(
-                            f"{self.log_file}:{line_no} produced {output}"
-                        )
+                        logger.debug(f"{self.log_file}:{line_no} produced {output}")
                         yield output
                 self.last_line = line_no
                 self.last_update = self.log_file.stat().st_mtime
@@ -82,7 +80,9 @@ class MarianLogParser(object):
         """
         Parses a log line and returns tuple(s) of (time, update, metric, value).
         """
-        valid_re = re.compile(r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?")
+        valid_re = re.compile(
+            r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
+        )
         m = valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
@@ -93,27 +93,44 @@ class MarianLogParser(object):
             stalled = int(m.group("stalled") or 0)
             yield (self.wall_time(_date + " " + _time), update, "epoch", epoch)
             yield (self.wall_time(_date + " " + _time), update, metric, value)
-            yield (self.wall_time(_date + " " + _time), update, f"{metric}_stalled", stalled)
+            yield (
+                self.wall_time(_date + " " + _time),
+                update,
+                f"{metric}_stalled",
+                stalled,
+            )
 
-        train_re = re.compile(r"Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)")
+        train_re = re.compile(
+            r"Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)"
+        )
         m = train_re.search(line)
         if m:
             _date, _time, *rest = line.split()
             epoch = int(m.group("epoch"))
             update = int(m.group("updates"))
-            sentences = int(str(m.group("sentences")).replace(",",""))
+            sentences = int(str(m.group("sentences")).replace(",", ""))
             metric = "train_{}".format(m.group("metric"))
             value = float(m.group("value"))
             yield (self.wall_time(_date + " " + _time), update, "epoch", epoch)
             yield (self.wall_time(_date + " " + _time), update, metric, value)
-            yield (self.wall_time(_date + " " + _time), update, "per_update_train_sent", sentences)
-            yield (self.wall_time(_date + " " + _time), update, "total_train_sent", sentences + self.total_sentences)
+            yield (
+                self.wall_time(_date + " " + _time),
+                update,
+                "per_update_train_sent",
+                sentences,
+            )
+            yield (
+                self.wall_time(_date + " " + _time),
+                update,
+                "total_train_sent",
+                sentences + self.total_sentences,
+            )
 
         total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d]+)")
         m = total_sentences_re.search(line)
         if m:
             epoch_sentence = int(m.group("epoch_sentence"))
-            self.total_sentences += epoch_sentence        
+            self.total_sentences += epoch_sentence
 
     def wall_time(self, string):
         return calendar.timegm(time.strptime(string, "[%Y-%m-%d %H:%M:%S]"))
