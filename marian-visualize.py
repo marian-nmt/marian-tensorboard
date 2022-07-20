@@ -49,10 +49,10 @@ class LogFileReader(object):
             for line_no, line in enumerate(logs):
                 if self.last_line and self.last_line < line_no:
                     for output in self.parser.parse_line(line):
-                        # logger.debug(f"{self.log_file}:{line_no} produced {output}")
+                        logger.debug(f"{self.log_file}:{line_no} produced {output}")
                         yield output
-                self.last_line = line_no
-                self.last_update = self.log_file.stat().st_mtime
+                    self.last_line = line_no
+                    self.last_update = self.log_file.stat().st_mtime
             self._save_state()
 
     def _load_state(self):
