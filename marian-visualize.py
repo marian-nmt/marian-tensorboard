@@ -75,20 +75,23 @@ class MarianLogParser(object):
 
     def __init__(self):
         self.total_sentences = 0
+        self.train_re = re.compile(
+            r"Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)"
+        )
+        self.valid_re = re.compile(
+            r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
+        )
 
     def parse_line(self, line):
         """
         Parses a log line and returns tuple(s) of (time, update, metric, value).
         """
-        valid_re = re.compile(
-            r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
-        )
-        m = valid_re.search(line)
+        m = self.valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
             epoch = int(m.group("epoch"))
             update = int(m.group("updates"))
-            metric = "valid_{}".format(m.group("metric"))
+            metric = m.group("metric")
             value = float(m.group("value"))
             stalled = int(m.group("stalled") or 0)
             yield (
@@ -104,16 +107,13 @@ class MarianLogParser(object):
                 stalled,
             )
 
-        train_re = re.compile(
-            r"Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)"
-        )
-        m = train_re.search(line)
+        m = self.train_re.search(line)
         if m:
             _date, _time, *rest = line.split()
             epoch = int(m.group("epoch"))
             update = int(m.group("updates"))
             sentences = int(str(m.group("sentences")).replace(",", ""))
-            metric = "train_{}".format(m.group("metric"))
+            metric = m.group("metric")
             value = float(m.group("value"))
             yield (self.wall_time(_date + " " + _time), update, "train/epoch", epoch)
             yield (
