@@ -10,6 +10,7 @@ import tensorboard as tb
 import tensorboardX as tbx
 import threading
 import time
+import re
 
 from pathlib import Path
 
@@ -74,30 +75,45 @@ class LogFileReader(object):
 class MarianLogParser(object):
     """Parser for Marian logs."""
 
+    def __init__(self):
+        self.total_sentences = 0
+
     def parse_line(self, line):
-        """Parses a log line and returns tuple(s) of (time, update, metric, value)."""
-        if "[valid]" in line:
-            (
-                _date,
-                _time,
-                _,
-                _ep,
-                ep,
-                _,
-                _up,
-                up,
-                _,
-                metric,
-                _,
-                value,
-                _,
-                _stalled,
-                x,
-                *_times,
-            ) = line.split()
-            update = int(up)
-            value = float(value)
+        """
+        Parses a log line and returns tuple(s) of (time, update, metric, value).
+        """
+        valid_re = re.compile(r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?")
+        m = valid_re.search(line)
+        if m:
+            _date, _time, *rest = line.split()
+            epoch = int(m.group("epoch"))
+            update = int(m.group("updates"))
+            metric = "valid_{}".format(m.group("metric"))
+            value = float(m.group("value"))
+            stalled = int(m.group("stalled") or 0)
+            yield (self.wall_time(_date + " " + _time), update, "epoch", epoch)
             yield (self.wall_time(_date + " " + _time), update, metric, value)
+            yield (self.wall_time(_date + " " + _time), update, f"{metric}_stalled", stalled)
+
+        train_re = re.compile(r"Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)")
+        m = train_re.search(line)
+        if m:
+            _date, _time, *rest = line.split()
+            epoch = int(m.group("epoch"))
+            update = int(m.group("updates"))
+            sentences = int(str(m.group("sentences")).replace(",",""))
+            metric = "train_{}".format(m.group("metric"))
+            value = float(m.group("value"))
+            yield (self.wall_time(_date + " " + _time), update, "epoch", epoch)
+            yield (self.wall_time(_date + " " + _time), update, metric, value)
+            yield (self.wall_time(_date + " " + _time), update, "per_update_train_sent", sentences)
+            yield (self.wall_time(_date + " " + _time), update, "total_train_sent", sentences + self.total_sentences)
+
+        total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d]+)")
+        m = total_sentences_re.search(line)
+        if m:
+            epoch_sentence = int(m.group("epoch_sentence"))
+            self.total_sentences += epoch_sentence        
 
     def wall_time(self, string):
         return calendar.timegm(time.strptime(string, "[%Y-%m-%d %H:%M:%S]"))
