@@ -65,7 +65,7 @@ class LogFileReader(object):
             pickle.dump((self.last_update, self.last_line), fstate)
 
     def _need_update(self):
-        if self.last_update and self.last_update <= self.log_file.stat().st_mtime:
+        if self.last_update and self.last_update > self.log_file.stat().st_mtime:
             return False
         return True
 
