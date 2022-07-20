@@ -51,7 +51,9 @@ class LogFileReader(object):
                     for output in self.parser.parse_line(line):
                         logger.debug(f"{self.log_file}:{line_no} produced {output}")
                         yield output
+                if line_no > self.last_line:
                     self.last_line = line_no
+                if self.log_file.stat().st_mtime > self.last_update:
                     self.last_update = self.log_file.stat().st_mtime
             self._save_state()
 
