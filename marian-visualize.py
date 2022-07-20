@@ -29,8 +29,8 @@ class LogFileReader(object):
             self.state_file = Path(workdir) / "state.pkl"
         else:
             self.state_file = None
-        self.last_update = None
-        self.last_line = None
+        self.last_update = 0
+        self.last_line = 0
 
         self._load_state()
 
@@ -68,7 +68,7 @@ class LogFileReader(object):
 
     def _need_update(self):
         # logger.debug(f"Last update: {self.last_update}, last touch: {self.log_file.stat().st_mtime}")
-        if self.last_update and self.last_update >= self.log_file.stat().st_mtime:
+        if self.last_update > 0 and self.last_update >= self.log_file.stat().st_mtime:
             return False
         return True
 
