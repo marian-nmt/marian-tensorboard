@@ -13,3 +13,9 @@ TensorBoard integration for Marian NMT.
     ./marian-visualize.py --log-file logs/train.encs.*.log
 
 Open a web browser at `localhost:6006`.
+
+## Contributors
+
+* Amr Hendy
+* Kevin Duh
+* Roman Grundkiewicz
