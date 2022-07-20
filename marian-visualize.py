@@ -49,7 +49,7 @@ class LogFileReader(object):
             for line_no, line in enumerate(logs):
                 if self.last_line and self.last_line < line_no:
                     for output in self.parser.parse_line(line):
-                        logger.debug(f"{self.log_file}:{line_no} produced {output}")
+                        # logger.debug(f"{self.log_file}:{line_no} produced {output}")
                         yield output
                 self.last_line = line_no
                 self.last_update = self.log_file.stat().st_mtime
@@ -65,7 +65,8 @@ class LogFileReader(object):
             pickle.dump((self.last_update, self.last_line), fstate)
 
     def _need_update(self):
-        if self.last_update and self.last_update > self.log_file.stat().st_mtime:
+        # logger.debug(f"Last update: {self.last_update}, last touch: {self.log_file.stat().st_mtime}")
+        if self.last_update and self.last_update >= self.log_file.stat().st_mtime:
             return False
         return True
 
