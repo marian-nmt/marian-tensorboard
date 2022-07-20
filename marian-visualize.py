@@ -81,11 +81,21 @@ class MarianLogParser(object):
         self.valid_re = re.compile(
             r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
         )
+        self.config_re = re.compile(
+            r"\[config\].*?(?P<config_name>[A-z|-]+):[\s]+(?P<config_value>[\d\.|A-z]+)"
+        )
+        self.total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d]+)")
 
     def parse_line(self, line):
         """
         Parses a log line and returns tuple(s) of (time, update, metric, value).
         """
+        m = self.config_re.search(line)
+        if m:
+            config_name = m.group("config_name")
+            config_value = m.group("config_value")
+            yield ("text", None, None, config_name, config_value)
+
         m = self.valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
@@ -95,12 +105,14 @@ class MarianLogParser(object):
             value = float(m.group("value"))
             stalled = int(m.group("stalled") or 0)
             yield (
+                "scalar",
                 self.wall_time(_date + " " + _time),
                 update,
                 f"valid/{metric}",
                 value,
             )
             yield (
+                "scalar",
                 self.wall_time(_date + " " + _time),
                 update,
                 f"valid/{metric}_stalled",
@@ -115,28 +127,36 @@ class MarianLogParser(object):
             sentences = int(str(m.group("sentences")).replace(",", ""))
             metric = m.group("metric")
             value = float(m.group("value"))
-            yield (self.wall_time(_date + " " + _time), update, "train/epoch", epoch)
             yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                update,
+                "train/epoch",
+                epoch,
+            )
+            yield (
+                "scalar",
                 self.wall_time(_date + " " + _time),
                 update,
                 f"train/{metric}",
                 value,
             )
             yield (
+                "scalar",
                 self.wall_time(_date + " " + _time),
                 update,
                 f"train/update_sent",
                 sentences,
             )
             yield (
+                "scalar",
                 self.wall_time(_date + " " + _time),
                 update,
                 f"train/total_sent",
                 sentences + self.total_sentences,
             )
 
-        total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d]+)")
-        m = total_sentences_re.search(line)
+        m = self.total_sentences_re.search(line)
         if m:
             epoch_sentence = int(m.group("epoch_sentence"))
             self.total_sentences += epoch_sentence
@@ -148,7 +168,7 @@ class MarianLogParser(object):
 class LogWriter(object):
     """Template class for logging writers."""
 
-    def write(self, time, update, metric, value):
+    def write(self, type, time, update, metric, value):
         raise NotImplemented
 
 
@@ -158,8 +178,13 @@ class TensorboardWriter(LogWriter):
     def __init__(self, path):
         self.writer = tbx.SummaryWriter(path)
 
-    def write(self, time, update, metric, value):
-        self.writer.add_scalar(metric, value, update, time)
+    def write(self, type, time, update, metric, value):
+        if type == "scalar":
+            self.writer.add_scalar(metric, value, update, time)
+        elif type == "text":
+            self.writer.add_text(metric, value)
+        else:
+            raise NotImplemented
 
 
 class AzureMLMetricsWriter(LogWriter):
