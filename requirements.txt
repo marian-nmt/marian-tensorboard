@@ -1,3 +1,4 @@
 black
 tensorboardX
 tensorboard
+azureml-core
