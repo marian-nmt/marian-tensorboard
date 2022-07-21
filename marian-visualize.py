@@ -193,7 +193,15 @@ class TensorboardWriter(LogWriter):
 class AzureMLMetricsWriter(LogWriter):
     """Writing logs for Azure ML metrics."""
 
-    pass
+    def __init__(self):
+        from azureml.core import Run
+        self.writer = Run.get_context()
+
+    def write(self, type, time, update, metric, value):
+        if type == "scalar":
+            self.writer.log(metric, value)
+        else:
+            raise NotImplemented
 
 
 class ConvertionJob(threading.Thread):
@@ -218,8 +226,9 @@ class ConvertionJob(threading.Thread):
         reader = LogFileReader(
             path=self.log_file, workdir=log_dir, parser=MarianLogParser()
         )
-        writer = TensorboardWriter(log_dir)
-
+        #writer = TensorboardWriter(log_dir)
+        writer = AzureMLMetricsWriter()
+        
         for tup in reader.read():
             writer.write(*tup)
 
@@ -296,6 +305,9 @@ def parse_user_args():
     )
     parser.add_argument(
         "--offline", help="do not monitor logs for updates", action="store_true"
+    )
+    parser.add_argument(
+        "--azureml", help="also log on azureml metrics", action="store_true"
     )
     parser.add_argument("--debug", help="be more verbose", action="store_true")
     args = parser.parse_args()
