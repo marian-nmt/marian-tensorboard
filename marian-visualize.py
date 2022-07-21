@@ -279,6 +279,10 @@ def main():
         if not args.azureml:
             logger.info("Starting TensorBoard server...")
             launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
+        else:
+            from azureml.tensorboard import Tensorboard
+            tb = Tensorboard([], local_root=args.logdir, port=6006)
+            tb.start()
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
