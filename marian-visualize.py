@@ -177,6 +177,7 @@ class TensorboardWriter(LogWriter):
 
     def __init__(self, path):
         self.writer = tbx.SummaryWriter(path)
+        logger.info(f"Exporting to Tensorboard directory: {path}")
 
     def write(self, type, time, update, metric, value):
         if type == "scalar":
@@ -193,18 +194,19 @@ class AzureMLMetricsWriter(LogWriter):
     def __init__(self):
         from azureml.core import Run
         self.writer = Run.get_context()
+        logger.info("Logging to AzureML Metrics...")
 
     def write(self, type, time, update, metric, value):
         if type == "scalar":
-            self.writer.log(metric, value)
+            self.writer.log_row(metric, x=update, y=value)
         else:
-            raise NotImplemented
+            pass
 
 
 class ConvertionJob(threading.Thread):
     """Job connecting logging readers and writers in a subthread."""
 
-    def __init__(self, log_file, work_dir, update_freq=5):
+    def __init__(self, log_file, work_dir, update_freq=5, azureml=False):
         threading.Thread.__init__(self)
 
         # The shutdown_flag is a threading.Event object that
@@ -214,6 +216,7 @@ class ConvertionJob(threading.Thread):
         self.log_file = log_file
         self.work_dir = work_dir
         self.update_freq = update_freq
+        self.azureml = azureml
 
     def run(self):
         """Runs the convertion job."""
@@ -222,14 +225,18 @@ class ConvertionJob(threading.Thread):
         log_dir = Path(self.work_dir) / Path(self.log_file).stem
         reader = LogFileReader(path=self.log_file, workdir=log_dir)
         parser = MarianLogParser()
-        #writer = TensorboardWriter(log_dir)
-        writer = AzureMLMetricsWriter()
+
+        writers = []
+        writers.append(TensorboardWriter(log_dir))
+        if self.azureml:
+            writers.append(AzureMLMetricsWriter())
 
         while not self.shutdown_flag.is_set():
             for line_no, line in enumerate(reader.read()):
                 for log_tuple in parser.parse_line(line):
                     logger.debug(f"{self.log_file}:{line_no} produced {log_tuple}")
-                    writer.write(*log_tuple)
+                    for writer in writers:
+                        writer.write(*log_tuple)
 
             if self.update_freq == 0:  # just a single iteration if requested
                 break
@@ -260,7 +267,7 @@ def main():
         jobs = []
         for log_file in args.log_file:
             update_freq = 0 if args.offline else 5
-            job = ConvertionJob(log_file, args.work_dir, update_freq)
+            job = ConvertionJob(log_file, args.work_dir, update_freq, args.azureml)
             job.start()
             jobs.append(job)
 
@@ -269,8 +276,9 @@ def main():
                 job.join()
             logger.info("Done")
 
-        logger.info("Starting TensorBoard server...")
-        launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
+        if not args.azureml:
+            logger.info("Starting TensorBoard server...")
+            launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
