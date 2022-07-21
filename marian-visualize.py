@@ -22,9 +22,8 @@ logging.basicConfig(level=logging.ERROR)
 class LogFileReader(object):
     """Reader for log files in a text format."""
 
-    def __init__(self, path, parser, workdir):
+    def __init__(self, path, workdir):
         self.log_file = Path(path)
-        self.parser = parser
         if workdir:
             self.state_file = Path(workdir) / "state.pkl"
         else:
@@ -48,9 +47,7 @@ class LogFileReader(object):
         with open(self.log_file, "r", encoding="utf-8") as logs:
             for line_no, line in enumerate(logs):
                 if self.last_line and self.last_line < line_no:
-                    for output in self.parser.parse_line(line):
-                        logger.debug(f"{self.log_file}:{line_no} produced {output}")
-                        yield output
+                    yield line
                 if line_no > self.last_line:
                     self.last_line = line_no
                 if self.log_file.stat().st_mtime > self.last_update:
@@ -223,18 +220,20 @@ class ConvertionJob(threading.Thread):
         logging.debug(f"Thread #{self.ident} handling {self.log_file} started")
 
         log_dir = Path(self.work_dir) / Path(self.log_file).stem
-        reader = LogFileReader(
-            path=self.log_file, workdir=log_dir, parser=MarianLogParser()
-        )
+        reader = LogFileReader(path=self.log_file, workdir=log_dir)
+        parser = MarianLogParser()
         #writer = TensorboardWriter(log_dir)
         writer = AzureMLMetricsWriter()
-        
-        for tup in reader.read():
-            writer.write(*tup)
 
-        while self.update_freq > 0 and not self.shutdown_flag.is_set():
-            for tup in reader.read():
-                writer.write(*tup)
+        while not self.shutdown_flag.is_set():
+            for line_no, line in enumerate(reader.read()):
+                for log_tuple in parser.parse_line(line):
+                    logger.debug(f"{self.log_file}:{line_no} produced {log_tuple}")
+                    writer.write(*log_tuple)
+
+            if self.update_freq == 0:  # just a single iteration if requested
+                break
+
             time.sleep(self.update_freq)
 
         logging.debug(f"Thread #{self.ident} stopped")
@@ -296,7 +295,9 @@ def launch_tensorboard(logdir, port):
 def parse_user_args():
     """Defines and parses user command line options."""
     parser = argparse.ArgumentParser()
-    parser.add_argument("-f", "--log-file", nargs="+", help="path to train.log files")
+    parser.add_argument(
+        "-f", "--log-file", nargs="+", help="path to train.log files/directory"
+    )
     parser.add_argument(
         "-w", "--work-dir", help="TensorBoard logging directory", default="logdir"
     )
