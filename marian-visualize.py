@@ -193,6 +193,7 @@ class AzureMLMetricsWriter(LogWriter):
 
     def __init__(self):
         from azureml.core import Run
+
         self.writer = Run.get_context()
         logger.info("Logging to AzureML Metrics...")
 
@@ -281,6 +282,7 @@ def main():
             launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
         else:
             from azureml.tensorboard import Tensorboard
+
             tb = Tensorboard([], local_root=args.logdir, port=6006)
             tb.start()
 
