@@ -11,6 +11,7 @@ import tensorboardX as tbx
 import threading
 import time
 import re
+import os
 
 from functools import reduce
 from pathlib import Path
@@ -291,10 +292,9 @@ def main():
             logger.info("Starting TensorBoard server...")
             launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
         else:
-            from azureml.tensorboard import Tensorboard
-
-            tb = Tensorboard([], local_root=args.logdir, port=6006)
-            tb.start()
+            args.work_dir=os.getenv('AZUREML_TB_PATH')
+            logger.info("AzureML RunID: %s" %os.getenv("AZUREML_RUN_ID"))
+            logger.info("AzureML Setting tensorboard work_dir: %s" %args.work_dir)
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
@@ -342,7 +342,7 @@ def parse_user_args():
     else:
         logging.getLogger("marian-visualize").setLevel(logging.INFO)
     return args
-
+    
 
 if __name__ == "__main__":
     main()
