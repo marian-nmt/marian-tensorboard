@@ -12,6 +12,7 @@ import threading
 import time
 import re
 
+from functools import reduce
 from pathlib import Path
 
 # Setup logger suppressing logging from external modules
@@ -223,7 +224,7 @@ class ConvertionJob(threading.Thread):
         """Runs the convertion job."""
         logging.debug(f"Thread #{self.ident} handling {self.log_file} started")
 
-        log_dir = Path(self.work_dir) / Path(self.log_file).stem
+        log_dir = Path(self.work_dir) / self._abs_path_to_dir_name(self.log_file)
         reader = LogFileReader(path=self.log_file, workdir=log_dir)
         parser = MarianLogParser()
 
@@ -245,6 +246,15 @@ class ConvertionJob(threading.Thread):
             time.sleep(self.update_freq)
 
         logging.debug(f"Thread #{self.ident} stopped")
+
+    def _abs_path_to_dir_name(self, path):
+        normalizations = {"/": "__", "\\": "__", " ": ""}
+        tmp_path = str(Path(path).resolve().with_suffix(""))
+        nrm_path = reduce(
+            lambda x, y: x.replace(y[0], y[1]), normalizations.items(), tmp_path
+        )
+        logger.debug(f"Normalized '{path}' to '{nrm_path}'")
+        return nrm_path
 
 
 class ServiceExit(Exception):
