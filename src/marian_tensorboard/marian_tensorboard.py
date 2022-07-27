@@ -340,12 +340,12 @@ def parse_user_args():
         logging.getLogger("marian-visualize").setLevel(logging.INFO)
 
     if args.azureml:
-        args.work_dir=os.getenv('AZUREML_TB_PATH')
-        logger.info("AzureML RunID: %s" %os.getenv("AZUREML_RUN_ID"))
-        logger.info("AzureML Setting tensorboard work_dir: %s" %args.work_dir)
+        args.work_dir = os.getenv('AZUREML_TB_PATH')
+        logger.info("AzureML RunID: %s" % os.getenv("AZUREML_RUN_ID"))
+        logger.info("AzureML Setting tensorboard work_dir: %s" % args.work_dir)
 
     return args
-    
+
 
 if __name__ == "__main__":
     main()
