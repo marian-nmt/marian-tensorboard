@@ -16,6 +16,7 @@ import time
 
 from functools import reduce
 from pathlib import Path
+from version import __version__ as VERSION
 
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
@@ -345,6 +346,9 @@ def parse_user_args():
         action="store_true",
     )
     parser.add_argument("--debug", help="print debug messages", action="store_true")
+    parser.add_argument(
+        "--version", action='version', version='%(prog)s {}'.format(VERSION)
+    )
     args = parser.parse_args()
 
     if args.debug:
