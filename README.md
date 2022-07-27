@@ -11,22 +11,23 @@ Using PyPI:
 Locally:
 
     git clone https://github.com/marian-nmt/marian-tensorboard
+    cd marian-tensorboard
     virtualenv -p python3 venv
     source ./venv/bin/activate
-    pip install -r requirements.txt
+    python3 setup.py install
 
 ## Usage
 
 ### Local machine
 
-    python3 marian-tensorboard --log-file examples/train.encs.*.log
+    marian-tensorboard --log-file examples/train.encs.*.log
 
 Open a web browser at `localhost:6006`. The script will update the TensorBoard
 charts every 5 seconds unless `--offline` is used.
 
 ### Azure ML
 
-    python3 marian-tensorboard --azureml
+    marian-tensorboard --azureml
 
 On Azure Machine Learning VM go to the __Metrics__ tab or start a TensorBoard
 server on the __Endpoints__ tab. Using `--azureml` will set `--work-dir`

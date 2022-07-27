@@ -16,7 +16,7 @@ import time
 
 from functools import reduce
 from pathlib import Path
-from version import __version__ as VERSION
+from .version import __version__ as VERSION
 
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
