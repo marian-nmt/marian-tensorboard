@@ -1,5 +1,4 @@
-black
-tensorboardX
-tensorboard
 azureml-core
-
+black
+tensorboard
+tensorboardX
