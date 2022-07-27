@@ -10,7 +10,7 @@ TensorBoard integration for Marian NMT.
 
 ## Example usage
 
-    ./marian-visualize.py --log-file logs/train.encs.*.log
+    ./marian-visualize.py --log-file examples/train.encs.*.log
 
 Open a web browser at `localhost:6006`.
 
