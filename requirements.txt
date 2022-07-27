@@ -1,5 +1,5 @@
-black
-tensorboardX
-tensorboard
 azureml-core
-
+black
+pytest
+tensorboard
+tensorboardX

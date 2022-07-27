@@ -1,5 +1,12 @@
+# Development
 *~
 *.swo
 *.swp
+
+# Python
+__pycache__/
+*.egg
+*.egg-info/
 *.pyc
-venv
+build/
+venv/

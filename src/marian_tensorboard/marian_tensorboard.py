@@ -1,23 +1,29 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 
 import argparse
 import calendar
 import logging
+import os
 import pickle
+import re
 import signal
 import sys
 import tensorboard as tb
 import tensorboardX as tbx
 import threading
 import time
-import re
-import os
+
+try:
+    from .version import __version__ as VERSION
+except ImportError:
+    VERSION = 'unknown'
 
 from functools import reduce
 from pathlib import Path
 
 # Setup logger suppressing logging from external modules
-logger = logging.getLogger("marian-visualize")
+logger = logging.getLogger("marian-tensorboard")
 logging.basicConfig(level=logging.ERROR)
 
 
@@ -223,7 +229,8 @@ class ConvertionJob(threading.Thread):
 
     def run(self):
         """Runs the convertion job."""
-        logging.debug(f"Thread #{self.ident} handling {self.log_file} started")
+        logger = logging.getLogger("marian-tensorboard")
+        logger.debug(f"Thread #{self.ident} handling {self.log_file} started")
 
         log_dir = Path(self.work_dir) / self._abs_path_to_dir_name(self.log_file)
         reader = LogFileReader(path=self.log_file, workdir=log_dir)
@@ -234,19 +241,32 @@ class ConvertionJob(threading.Thread):
         if self.azureml:
             writers.append(AzureMLMetricsWriter())
 
+        first = True
         while not self.shutdown_flag.is_set():
+            if first:
+                logger.info(f"Processing logs for {self.log_file}")
+
             for line_no, line in enumerate(reader.read()):
                 for log_tuple in parser.parse_line(line):
                     logger.debug(f"{self.log_file}:{line_no} produced {log_tuple}")
                     for writer in writers:
                         writer.write(*log_tuple)
 
+            if first:
+                logger.info(f"Finished processing logs for {self.log_file}")
+
             if self.update_freq == 0:  # just a single iteration if requested
                 break
 
-            time.sleep(self.update_freq)
+            if first:
+                logger.info(
+                    f"Monitoring {self.log_file} for updates every {self.update_freq}s"
+                )
 
-        logging.debug(f"Thread #{self.ident} stopped")
+            time.sleep(self.update_freq)
+            first = False
+
+        logger.debug(f"Thread #{self.ident} stopped")
 
     def _abs_path_to_dir_name(self, path):
         normalizations = {"/": "__", "\\": "__", " ": ""}
@@ -291,6 +311,7 @@ def main():
         if not args.azureml:
             logger.info("Starting TensorBoard server...")
             launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
+            logger.info(f"Serving TensorBoard at https://localhost:{args.port}/")
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
@@ -316,35 +337,51 @@ def parse_user_args():
     """Defines and parses user command line options."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-f", "--log-file", nargs="+", help="path to train.log files/directory"
+        "-f",
+        "--log-file",
+        nargs="+",
+        help="path to train.log files/directory",
+        required=True,
     )
     parser.add_argument(
-        "-w", "--work-dir", help="TensorBoard logging directory", default="logdir"
+        "-w",
+        "--work-dir",
+        help="TensorBoard logging directory, default: %(default)s",
+        default="logdir",
     )
     parser.add_argument(
-        "-p", "--port", help="port number for tensorboard", type=int, default=6006
+        "-p",
+        "--port",
+        help="port number for TensorBoard, default: %(default)s",
+        type=int,
+        default=6006,
     )
     parser.add_argument(
-        "--offline", help="do not monitor logs for updates", action="store_true"
+        "--offline", help="do not monitor for log updates", action="store_true"
     )
     parser.add_argument(
-        "--azureml", help="also log on azureml metrics", action="store_true"
+        "--azureml",
+        help="generate Azure ML Metrics; updates --work-dir automatically",
+        action="store_true",
     )
-    parser.add_argument("--debug", help="be more verbose", action="store_true")
+    parser.add_argument("--debug", help="print debug messages", action="store_true")
+    parser.add_argument(
+        "--version", action='version', version='%(prog)s {}'.format(VERSION)
+    )
     args = parser.parse_args()
 
     if args.debug:
-        logging.getLogger("marian-visualize").setLevel(logging.DEBUG)
+        logging.getLogger("marian-tensorboard").setLevel(logging.DEBUG)
     else:
-        logging.getLogger("marian-visualize").setLevel(logging.INFO)
+        logging.getLogger("marian-tensorboard").setLevel(logging.INFO)
 
     if args.azureml:
-        args.work_dir=os.getenv('AZUREML_TB_PATH')
-        logger.info("AzureML RunID: %s" %os.getenv("AZUREML_RUN_ID"))
-        logger.info("AzureML Setting tensorboard work_dir: %s" %args.work_dir)
+        args.work_dir = os.getenv('AZUREML_TB_PATH')
+        logger.info("AzureML RunID: %s" % os.getenv("AZUREML_RUN_ID"))
+        logger.info("AzureML Setting TensorBoard logdir: %s" % args.work_dir)
 
     return args
-    
+
 
 if __name__ == "__main__":
     main()
