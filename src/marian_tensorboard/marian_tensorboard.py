@@ -14,9 +14,13 @@ import tensorboardX as tbx
 import threading
 import time
 
+try:
+    from .version import __version__ as VERSION
+except ImportError:
+    VERSION = 'unknown'
+
 from functools import reduce
 from pathlib import Path
-from .version import __version__ as VERSION
 
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
@@ -225,7 +229,8 @@ class ConvertionJob(threading.Thread):
 
     def run(self):
         """Runs the convertion job."""
-        logging.debug(f"Thread #{self.ident} handling {self.log_file} started")
+        logger = logging.getLogger("marian-tensorboard")
+        logger.debug(f"Thread #{self.ident} handling {self.log_file} started")
 
         log_dir = Path(self.work_dir) / self._abs_path_to_dir_name(self.log_file)
         reader = LogFileReader(path=self.log_file, workdir=log_dir)
@@ -236,19 +241,32 @@ class ConvertionJob(threading.Thread):
         if self.azureml:
             writers.append(AzureMLMetricsWriter())
 
+        first = True
         while not self.shutdown_flag.is_set():
+            if first:
+                logger.info(f"Processing logs for {self.log_file}")
+
             for line_no, line in enumerate(reader.read()):
                 for log_tuple in parser.parse_line(line):
                     logger.debug(f"{self.log_file}:{line_no} produced {log_tuple}")
                     for writer in writers:
                         writer.write(*log_tuple)
 
+            if first:
+                logger.info(f"Finished processing logs for {self.log_file}")
+
             if self.update_freq == 0:  # just a single iteration if requested
                 break
 
-            time.sleep(self.update_freq)
+            if first:
+                logger.info(
+                    f"Monitoring {self.log_file} for updates every {self.update_freq}s"
+                )
 
-        logging.debug(f"Thread #{self.ident} stopped")
+            time.sleep(self.update_freq)
+            first = False
+
+        logger.debug(f"Thread #{self.ident} stopped")
 
     def _abs_path_to_dir_name(self, path):
         normalizations = {"/": "__", "\\": "__", " ": ""}
@@ -293,6 +311,7 @@ def main():
         if not args.azureml:
             logger.info("Starting TensorBoard server...")
             launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
+            logger.info(f"Serving TensorBoard at https://localhost:{args.port}/")
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
