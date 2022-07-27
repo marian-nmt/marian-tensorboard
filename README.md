@@ -21,18 +21,21 @@ Locally:
 
     python3 marian-tensorboard --log-file examples/train.encs.*.log
 
-Open a web browser at `localhost:6006`.
+Open a web browser at `localhost:6006`. The script will update the TensorBoard
+charts every 5 seconds unless `--offline` is used.
 
 ### Azure ML
 
     python3 marian-tensorboard --azureml
 
 On Azure Machine Learning VM go to the __Metrics__ tab or start a TensorBoard
-server on the __Endpoints__ tab.
+server on the __Endpoints__ tab. Using `--azureml` will set `--work-dir`
+automatically for the TensorBoard run internally at Azure ML and prevent the
+script from starting own instance.
 
 ## License
 
-See LICENSE.md.
+See [LICENSE.md](LICENSE.md).
 
 ## Contributors
 
@@ -40,4 +43,4 @@ See LICENSE.md.
 * Kevin Duh
 * Roman Grundkiewicz
 
-See CHANGELOG.md.
+See [CHANGELOG.md](CHANGELOG.md).
