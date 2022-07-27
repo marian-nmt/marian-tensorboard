@@ -18,7 +18,7 @@ from functools import reduce
 from pathlib import Path
 
 # Setup logger suppressing logging from external modules
-logger = logging.getLogger("marian-visualize")
+logger = logging.getLogger("marian-tensorboard")
 logging.basicConfig(level=logging.ERROR)
 
 
@@ -335,9 +335,9 @@ def parse_user_args():
     args = parser.parse_args()
 
     if args.debug:
-        logging.getLogger("marian-visualize").setLevel(logging.DEBUG)
+        logging.getLogger("marian-tensorboard").setLevel(logging.DEBUG)
     else:
-        logging.getLogger("marian-visualize").setLevel(logging.INFO)
+        logging.getLogger("marian-tensorboard").setLevel(logging.INFO)
 
     if args.azureml:
         args.work_dir = os.getenv('AZUREML_TB_PATH')
