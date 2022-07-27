@@ -4,15 +4,15 @@
 import argparse
 import calendar
 import logging
+import os
 import pickle
+import re
 import signal
 import sys
 import tensorboard as tb
 import tensorboardX as tbx
 import threading
 import time
-import re
-import os
 
 from functools import reduce
 from pathlib import Path
