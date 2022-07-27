@@ -317,21 +317,34 @@ def parse_user_args():
     """Defines and parses user command line options."""
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        "-f", "--log-file", nargs="+", help="path to train.log files/directory"
+        "-f",
+        "--log-file",
+        nargs="+",
+        help="path to train.log files/directory",
+        required=True,
     )
     parser.add_argument(
-        "-w", "--work-dir", help="TensorBoard logging directory", default="logdir"
+        "-w",
+        "--work-dir",
+        help="TensorBoard logging directory, default: %(default)s",
+        default="logdir",
     )
     parser.add_argument(
-        "-p", "--port", help="port number for tensorboard", type=int, default=6006
+        "-p",
+        "--port",
+        help="port number for TensorBoard, default: %(default)s",
+        type=int,
+        default=6006,
     )
     parser.add_argument(
-        "--offline", help="do not monitor logs for updates", action="store_true"
+        "--offline", help="do not monitor for log updates", action="store_true"
     )
     parser.add_argument(
-        "--azureml", help="also log on azureml metrics", action="store_true"
+        "--azureml",
+        help="generate Azure ML Metrics; updates --work-dir automatically",
+        action="store_true",
     )
-    parser.add_argument("--debug", help="be more verbose", action="store_true")
+    parser.add_argument("--debug", help="print debug messages", action="store_true")
     args = parser.parse_args()
 
     if args.debug:
@@ -342,7 +355,7 @@ def parse_user_args():
     if args.azureml:
         args.work_dir = os.getenv('AZUREML_TB_PATH')
         logger.info("AzureML RunID: %s" % os.getenv("AZUREML_RUN_ID"))
-        logger.info("AzureML Setting tensorboard work_dir: %s" % args.work_dir)
+        logger.info("AzureML Setting TensorBoard logdir: %s" % args.work_dir)
 
     return args
 
