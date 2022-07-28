@@ -2,6 +2,7 @@
 
 ## Version 0.0.4 (development)
 
+- Added parsing learning rates
 - Added parsing log files with logical epochs
 - Exit with error code if log file does not exist
 - Set `--azureml` automatically when running on Azure ML
