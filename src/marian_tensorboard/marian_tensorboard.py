@@ -366,19 +366,25 @@ def parse_user_args():
     )
     parser.add_argument("--debug", help="print debug messages", action="store_true")
     parser.add_argument(
-        "--version", action='version', version='%(prog)s {}'.format(VERSION)
+        "--version", action="version", version="%(prog)s {}".format(VERSION)
     )
     args = parser.parse_args()
 
-    if args.debug:
-        logging.getLogger("marian-tensorboard").setLevel(logging.DEBUG)
-    else:
-        logging.getLogger("marian-tensorboard").setLevel(logging.INFO)
+    # Set logging level
+    logging.getLogger("marian-tensorboard").setLevel(
+        logging.DEBUG if args.debug else logging.INFO
+    )
+
+    # Set --azureml automatically if running on Azure ML
+    azureml_run_id = os.getenv("AZUREML_RUN_ID", None)
+    if azureml_run_id:
+        args.azureml = True
 
     if args.azureml:
-        args.work_dir = os.getenv('AZUREML_TB_PATH')
-        logger.info("AzureML RunID: %s" % os.getenv("AZUREML_RUN_ID"))
-        logger.info("AzureML Setting TensorBoard logdir: %s" % args.work_dir)
+        # Set TensorBoard logdir to the one set on Azure ML
+        args.work_dir = os.getenv("AZUREML_TB_PATH")
+        logger.info(f"AzureML RunID: {azureml_run_id}")
+        logger.info(f"AzureML Setting TensorBoard logdir: {args.work_dir}")
 
     return args
 

@@ -1,12 +1,17 @@
 # Marian Tensorboard
 
-TensorBoard integration for Marian NMT.
+TensorBoard integration for [Marian NMT](https://marian-nmt.github.io/).
+`marian-tensorboard` generates charts for TensorBoard or Azure ML Metrics from
+Marian's training logs.
+
+It started as a project at [MTMA 2022](https://mtma22.github.io/) and
+conceptually at [MTM 2019](https://www.statmt.org/mtm19/).
 
 ## Installation
 
 Using PyPI:
 
-    python3 -m pip install marian-tensorboard
+    pip install marian-tensorboard
 
 Locally:
 
@@ -16,27 +21,25 @@ Locally:
     source ./venv/bin/activate
     python3 setup.py install
 
+Both will add new `marian-tensorboard` command.
+
 ## Usage
 
 ### Local machine
 
-    marian-tensorboard --log-file examples/train.encs.*.log
+    marian-tensorboard -f examples/train.encs.*.log
 
-Open a web browser at `localhost:6006`. The script will update the TensorBoard
-charts every 5 seconds unless `--offline` is used.
+Open a web browser at `https://localhost:6006`. The script will update the
+TensorBoard charts every 5 seconds unless `--offline` is used.
 
 ### Azure ML
 
-    marian-tensorboard -f path/to/train.log --azureml
+    marian-tensorboard -f path/to/train.log [--azureml]
 
-On Azure Machine Learning VM go to the __Metrics__ tab or start a TensorBoard
-server on the __Endpoints__ tab. Using `--azureml` will set `--work-dir`
-automatically for the TensorBoard run internally at Azure ML and prevent the
-script from starting own instance.
-
-## License
-
-See [LICENSE.md](LICENSE.md).
+Then on Azure Machine Learning VM go to the __Metrics__ tab or start a
+TensorBoard server under the __Endpoints__ tab. Using `--azureml` will set
+`--work-dir` automatically for the TensorBoard that is run internally at Azure
+ML and prevent the script from starting own instance.
 
 ## Contributors
 
@@ -45,3 +48,7 @@ See [LICENSE.md](LICENSE.md).
 * Roman Grundkiewicz
 
 See [CHANGELOG.md](CHANGELOG.md).
+
+## License
+
+See [LICENSE.md](LICENSE.md).
