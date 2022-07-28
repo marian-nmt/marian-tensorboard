@@ -86,10 +86,17 @@ class MarianLogParser(object):
     def __init__(self):
         self.total_sentences = 0
         self.train_re = re.compile(
-            r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)"
+            r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]"  # Ep. 1.234 :
+            r"Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]"  # Up. 1234 :
+            r"Sen\.[\s](?P<sentences>[0-9|,]+).*?"  # Sen. 1,234,567 :
+            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+).*?"  # Cost 1.23456 :
+            r"L\.r\.[\s](?P<learnrate>[\d\.]+e-[\d]+)"  # L.r. 1.234-05
         )
         self.valid_re = re.compile(
-            r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
+            r"\[valid\][\s]+"
+            r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]"
+            r"Up\.[\s](?P<updates>[\d]+).*?"
+            r"(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
         )
         self.config_re = re.compile(
             r"\[config\].*?(?P<config_name>[A-z|-]+):[\s]+(?P<config_value>[\d\.|A-z]+)"
@@ -137,6 +144,7 @@ class MarianLogParser(object):
             sentences = int(str(m.group("sentences")).replace(",", ""))
             metric = m.group("metric")
             value = float(m.group("value"))
+            learnrate = float(m.group("learnrate"))
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
@@ -164,6 +172,13 @@ class MarianLogParser(object):
                 update,
                 f"train/total_sent",
                 sentences + self.total_sentences,
+            )
+            yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                update,
+                f"train/learn_rate",
+                learnrate,
             )
 
         m = self.total_sentences_re.search(line)

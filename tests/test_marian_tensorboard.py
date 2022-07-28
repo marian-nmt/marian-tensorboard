@@ -19,6 +19,7 @@ EXPECTED_OUTPUTS = (
         ('scalar', 1553525514, 1000, 'train/Cost', 7.95987511),
         ('scalar', 1553525514, 1000, 'train/update_sent', 1269755),
         ('scalar', 1553525514, 1000, 'train/total_sent', 1269755),
+        ('scalar', 1553525514, 1000, 'train/learn_rate', 0.0000125),
     ],
     [
         ('scalar', 1553531853, 5000, 'valid/ce-mean-words', 5.21277),
@@ -33,6 +34,7 @@ EXPECTED_OUTPUTS = (
         ('scalar', 1651442049, 20785, 'train/Cost', 0.12538165),
         ('scalar', 1651442049, 20785, 'train/update_sent', 646829638),
         ('scalar', 1651442049, 20785, 'train/total_sent', 646829638),
+        ('scalar', 1651442049, 20785, 'train/learn_rate', 0.00065259),
     ],
 )
 
