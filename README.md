@@ -27,7 +27,7 @@ charts every 5 seconds unless `--offline` is used.
 
 ### Azure ML
 
-    marian-tensorboard --azureml
+    marian-tensorboard -f path/to/train.log --azureml
 
 On Azure Machine Learning VM go to the __Metrics__ tab or start a TensorBoard
 server on the __Endpoints__ tab. Using `--azureml` will set `--work-dir`

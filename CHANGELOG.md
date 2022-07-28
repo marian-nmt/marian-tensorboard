@@ -1,7 +1,7 @@
 # Changelog
 
-## Version 0.0.1 (development)
+## Version 0.0.2 (development)
 
-- Created the package marian-tensorboard
+- Created package: marian-tensorboard
 - Added integration for TensorBoard and Azure ML Metrics
 - Started the project at MTMA 2022
