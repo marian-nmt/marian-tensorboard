@@ -22,6 +22,8 @@ except ImportError:
 from functools import reduce
 from pathlib import Path
 
+UPDATE_FREQ = 10  # Monitoring for updates in log files every this number of seconds
+
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
 logging.basicConfig(level=logging.ERROR)
@@ -298,7 +300,12 @@ def main():
         # Create a convertion job for each log file
         jobs = []
         for log_file in args.log_file:
-            update_freq = 0 if args.offline else 5
+            if not Path(log_file).exists():
+                logger.error(f"Log file not found: {log_file}")
+                raise FileNotFoundError
+
+            update_freq = 0 if args.offline else UPDATE_FREQ
+
             job = ConvertionJob(log_file, args.work_dir, update_freq, args.azureml)
             job.start()
             jobs.append(job)
@@ -322,6 +329,9 @@ def main():
             job.shutdown_flag.set()
         for job in jobs:
             job.join()
+
+    except FileNotFoundError:
+        sys.exit(os.EX_NOINPUT)
 
     logger.info("Done")
 
