@@ -22,6 +22,8 @@ except ImportError:
 from functools import reduce
 from pathlib import Path
 
+UPDATE_FREQ = 10  # Monitoring for updates in log files every this number of seconds
+
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
 logging.basicConfig(level=logging.ERROR)
@@ -298,7 +300,12 @@ def main():
         # Create a convertion job for each log file
         jobs = []
         for log_file in args.log_file:
-            update_freq = 0 if args.offline else 5
+            if not Path(log_file).exists():
+                logger.error(f"Log file not found: {log_file}")
+                raise FileNotFoundError
+
+            update_freq = 0 if args.offline else UPDATE_FREQ
+
             job = ConvertionJob(log_file, args.work_dir, update_freq, args.azureml)
             job.start()
             jobs.append(job)
@@ -322,6 +329,9 @@ def main():
             job.shutdown_flag.set()
         for job in jobs:
             job.join()
+
+    except FileNotFoundError:
+        sys.exit(os.EX_NOINPUT)
 
     logger.info("Done")
 
@@ -366,19 +376,25 @@ def parse_user_args():
     )
     parser.add_argument("--debug", help="print debug messages", action="store_true")
     parser.add_argument(
-        "--version", action='version', version='%(prog)s {}'.format(VERSION)
+        "--version", action="version", version="%(prog)s {}".format(VERSION)
     )
     args = parser.parse_args()
 
-    if args.debug:
-        logging.getLogger("marian-tensorboard").setLevel(logging.DEBUG)
-    else:
-        logging.getLogger("marian-tensorboard").setLevel(logging.INFO)
+    # Set logging level
+    logging.getLogger("marian-tensorboard").setLevel(
+        logging.DEBUG if args.debug else logging.INFO
+    )
+
+    # Set --azureml automatically if running on Azure ML
+    azureml_run_id = os.getenv("AZUREML_RUN_ID", None)
+    if azureml_run_id:
+        args.azureml = True
 
     if args.azureml:
-        args.work_dir = os.getenv('AZUREML_TB_PATH')
-        logger.info("AzureML RunID: %s" % os.getenv("AZUREML_RUN_ID"))
-        logger.info("AzureML Setting TensorBoard logdir: %s" % args.work_dir)
+        # Set TensorBoard logdir to the one set on Azure ML
+        args.work_dir = os.getenv("AZUREML_TB_PATH")
+        logger.info(f"AzureML RunID: {azureml_run_id}")
+        logger.info(f"AzureML Setting TensorBoard logdir: {args.work_dir}")
 
     return args
 
