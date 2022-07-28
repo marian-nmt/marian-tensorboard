@@ -10,6 +10,7 @@ LOG_LINES = (
     "[2019-03-25 14:51:54] Ep. 1 : Up. 1000 : Sen. 1,269,755 : Cost 7.95987511 : Time 785.53s : 17289.59 words/s : L.r. 1.2500e-05",
     "[2019-03-25 16:37:33] [valid] Ep. 1 : Up. 5000 : ce-mean-words : 5.21277 : new best",
     "[2019-04-10 13:18:39] [valid] Ep. 9 : Up. 775000 : perplexity : 4.24812 : stalled 4 times (last best: 4.24112)",
+    "2022-05-01 21:54:09 [2022-05-01 14:54:07 mpi:0] Ep. 24.151 : Up. 20785 : Sen. 646,829,638 : Cost 0.12538165 * 25,437,554 @ 2,305,265 after 24,150,553,337 : Time 21.29s : 1193424.53 words/s : gNorm 0.0552 : L.r. 6.5259e-04",
 )
 
 EXPECTED_OUTPUTS = (
@@ -26,6 +27,12 @@ EXPECTED_OUTPUTS = (
     [
         ('scalar', 1554902319, 775000, 'valid/perplexity', 4.24812),
         ('scalar', 1554902319, 775000, 'valid/perplexity_stalled', 4),
+    ],
+    [
+        ('scalar', 1651442049, 20785, 'train/epoch', 24.151),
+        ('scalar', 1651442049, 20785, 'train/Cost', 0.12538165),
+        ('scalar', 1651442049, 20785, 'train/update_sent', 646829638),
+        ('scalar', 1651442049, 20785, 'train/total_sent', 646829638),
     ],
 )
 

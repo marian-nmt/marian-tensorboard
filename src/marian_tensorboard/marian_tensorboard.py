@@ -86,15 +86,15 @@ class MarianLogParser(object):
     def __init__(self):
         self.total_sentences = 0
         self.train_re = re.compile(
-            r"Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)"
+            r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]Sen\.[\s](?P<sentences>[0-9|,]+).*?(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)"
         )
         self.valid_re = re.compile(
-            r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
+            r"\[valid\][\s]+Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]Up\.[\s](?P<updates>[\d]+).*?(?P<metric>[a-z|-]+)[\s]+:[\s]+(?P<value>[\d\.]+)([\s]+:[\s]stalled[\s](?P<stalled>[\d]+))?"
         )
         self.config_re = re.compile(
             r"\[config\].*?(?P<config_name>[A-z|-]+):[\s]+(?P<config_value>[\d\.|A-z]+)"
         )
-        self.total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d]+)")
+        self.total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d.]+)")
 
     def parse_line(self, line):
         """
@@ -109,7 +109,7 @@ class MarianLogParser(object):
         m = self.valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
-            epoch = int(m.group("epoch"))
+            epoch = float(m.group("epoch"))
             update = int(m.group("updates"))
             metric = m.group("metric")
             value = float(m.group("value"))
@@ -132,7 +132,7 @@ class MarianLogParser(object):
         m = self.train_re.search(line)
         if m:
             _date, _time, *rest = line.split()
-            epoch = int(m.group("epoch"))
+            epoch = float(m.group("epoch"))
             update = int(m.group("updates"))
             sentences = int(str(m.group("sentences")).replace(",", ""))
             metric = m.group("metric")
@@ -172,7 +172,12 @@ class MarianLogParser(object):
             self.total_sentences += epoch_sentence
 
     def wall_time(self, string):
-        return calendar.timegm(time.strptime(string, "[%Y-%m-%d %H:%M:%S]"))
+        """Converts timestamp string into strptime. Strips brackets if necessary."""
+        if string.startswith("["):
+            string = string[1:]
+        if string.endswith("]"):
+            string = string[:-1]
+        return calendar.timegm(time.strptime(string, "%Y-%m-%d %H:%M:%S"))
 
 
 class LogWriter(object):
