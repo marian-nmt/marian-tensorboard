@@ -244,8 +244,8 @@ class ConvertionJob(threading.Thread):
         # indicates whether the thread should be terminated.
         self.shutdown_flag = threading.Event()
 
-        self.log_file = log_file
-        self.work_dir = work_dir
+        self.log_file = Path(log_file)
+        self.work_dir = Path(work_dir)
         self.update_freq = update_freq
         self.azureml = azureml
 
@@ -254,7 +254,7 @@ class ConvertionJob(threading.Thread):
         logger = logging.getLogger("marian-tensorboard")
         logger.debug(f"Thread #{self.ident} handling {self.log_file} started")
 
-        log_dir = Path(self.work_dir) / self._abs_path_to_dir_name(self.log_file)
+        log_dir = self.work_dir / self._abs_path_to_dir_name(self.log_file)
         reader = LogFileReader(path=self.log_file, workdir=log_dir)
         parser = MarianLogParser()
 
@@ -316,6 +316,15 @@ def main():
     signal.signal(signal.SIGTERM, service_shutdown)
     signal.signal(signal.SIGINT, service_shutdown)
 
+    # Create working directory if it does not exist
+    if not Path(args.work_dir).exists():
+        logger.warning(f"The directory '{args.work_dir}' does not exists, creating...")
+        try:
+            Path(args.work_dir).mkdir(parents=True, exist_ok=True)
+        except PermissionError:
+            logger.error(f"Insufficient permission to create {args.work_dir}")
+            sys.exit(os.EX_OSFILE)
+
     try:
         # Create a convertion job for each log file
         jobs = []
@@ -376,8 +385,7 @@ def parse_user_args():
     parser.add_argument(
         "-w",
         "--work-dir",
-        help="TensorBoard logging directory, default: %(default)s",
-        default="logdir",
+        help="TensorBoard logging directory, default: logdir",
     )
     parser.add_argument(
         "-p",
@@ -411,10 +419,17 @@ def parse_user_args():
         args.azureml = True
 
     if args.azureml:
-        # Set TensorBoard logdir to the one set on Azure ML
-        args.work_dir = os.getenv("AZUREML_TB_PATH")
+        # Try to set TensorBoard logdir to the one set on Azure ML
+        if not args.work_dir:
+            args.work_dir = os.getenv("AZUREML_TB_PATH", None)
+        if not args.work_dir:
+            args.work_dir = "/tb_logs"
         logger.info(f"AzureML RunID: {azureml_run_id}")
         logger.info(f"AzureML Setting TensorBoard logdir: {args.work_dir}")
+
+    # Set default value for --work-dir
+    if not args.work_dir:
+        args.work_dir = "logdir"
 
     return args
 
