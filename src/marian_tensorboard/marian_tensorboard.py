@@ -333,7 +333,7 @@ def main():
                 logger.error(f"Log file not found: {log_file}")
                 raise FileNotFoundError
 
-            update_freq = 0 if args.offline else UPDATE_FREQ
+            update_freq = 0 if args.offline else args.update_freq
 
             job = ConvertionJob(log_file, args.work_dir, update_freq, args.azureml)
             job.start()
@@ -395,7 +395,16 @@ def parse_user_args():
         default=6006,
     )
     parser.add_argument(
-        "--offline", help="do not monitor for log updates", action="store_true"
+        "-u",
+        "--update-freq",
+        help="update frequency in seconds, default: %(default)s",
+        type=int,
+        default=UPDATE_FREQ,
+    )
+    parser.add_argument(
+        "--offline",
+        help="do not monitor for log updates, overwrites --update-freq",
+        action="store_true",
     )
     parser.add_argument(
         "--azureml",
