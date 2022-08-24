@@ -240,7 +240,7 @@ class MLFlowTrackingWriter(LogWriter):
     def __init__(self):
         import mlflow
 
-        mlflow.start_experiment("mlflow-experiment")
+        mlflow.set_experiment("mlflow-experiment")
         logger.info("Starting MLflow run...")
         self.run = mlflow.start_run()
         logger.info(f"MLflow RunID: {self.run.info.run_id}")
