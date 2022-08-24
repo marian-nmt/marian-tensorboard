@@ -241,7 +241,12 @@ class MLFlowTrackingWriter(LogWriter):
         import mlflow
 
         logger.info("Autologging to MLflow...")
-        mlflow.autolog()
+        try:
+            mlflow.autolog()
+            run_id = mlflow.active_run().info.run_id
+            logger.info(f"MLflow RunID: {run_id}")
+        except:
+            logger.warning("Could not autolog MLflow or extract its run ID")
 
     def write(self, type, time, update, metric, value):
         if type == "scalar":
@@ -427,9 +432,7 @@ def parse_user_args():
         help="set visualization tools: tb, azureml, mlflow, default: tb",
     )
     parser.add_argument(
-        "-w",
-        "--work-dir",
-        help="TensorBoard logging directory, default: logdir",
+        "-w", "--work-dir", help="TensorBoard logging directory, default: logdir"
     )
     parser.add_argument(
         "-p",
