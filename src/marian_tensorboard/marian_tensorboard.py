@@ -464,10 +464,12 @@ def parse_user_args():
     if args.tool is None:
         args.tool = []
 
-    # Set azureml automatically if running on Azure ML
+    # Add azureml automatically if running on Azure ML
     azureml_run_id = os.getenv("AZUREML_RUN_ID", None)
     if azureml_run_id:
         args.tool.append('azureml')
+        # Do not start the server on Azure ML if automatically detected
+        args.port = 0
 
     if 'azureml' in args.tool or 'mlflow' in args.tool:
         # Try to set TensorBoard logdir to the one set on Azure ML
