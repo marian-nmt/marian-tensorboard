@@ -225,11 +225,29 @@ class AzureMLMetricsWriter(LogWriter):
         from azureml.core import Run
 
         self.writer = Run.get_context()
-        logger.info("Logging to AzureML Metrics...")
+        logger.info("Logging to Azure ML Metrics...")
 
     def write(self, type, time, update, metric, value):
         if type == "scalar":
             self.writer.log_row(metric, x=update, y=value)
+        else:
+            pass
+
+
+class MLFlowTrackingWriter(LogWriter):
+    """Writing logs for MLflow Tracking."""
+
+    def __init__(self):
+        import mlflow
+
+        logger.info("Autologging to MLflow...")
+        mlflow.autolog()
+
+    def write(self, type, time, update, metric, value):
+        if type == "scalar":
+            mlflow.log_metric(metric, value, step=update)
+        elif type == "text":
+            mlflow.log_param(metric, value)
         else:
             pass
 
