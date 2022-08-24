@@ -240,23 +240,22 @@ class MLFlowTrackingWriter(LogWriter):
     def __init__(self):
         import mlflow
 
-        logger.info("Autologging to MLflow...")
-        try:
-            mlflow.autolog()
-            run_id = mlflow.active_run().info.run_id
-            logger.info(f"MLflow RunID: {run_id}")
-        except:
-            logger.warning("Could not autolog MLflow or extract its run ID")
+        mlflow.start_experiment("mlflow-experiment")
+        logger.info("Starting MLflow run...")
+        self.run = mlflow.start_run()
+        logger.info(f"MLflow RunID: {self.run.info.run_id}")
+        # TODO: support multiple runs
 
     def write(self, type, time, update, metric, value):
-        import mlflow
-
         if type == "scalar":
             mlflow.log_metric(metric, value, step=update)
         elif type == "text":
             mlflow.log_param(metric, value)
         else:
             pass
+
+    def __del__(self):
+        self.run.end_run()
 
 
 class ConvertionJob(threading.Thread):
