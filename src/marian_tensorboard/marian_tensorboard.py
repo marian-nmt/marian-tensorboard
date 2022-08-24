@@ -249,6 +249,8 @@ class MLFlowTrackingWriter(LogWriter):
             logger.warning("Could not autolog MLflow or extract its run ID")
 
     def write(self, type, time, update, metric, value):
+        import mlflow
+
         if type == "scalar":
             mlflow.log_metric(metric, value, step=update)
         elif type == "text":
@@ -339,6 +341,8 @@ class ServiceExit(Exception):
 
 def main():
     args = parse_user_args()
+
+    logger.info(f"Enabled tools: {', '.join(args.tool)}")
 
     # Setup signal handling
     def service_shutdown(signum, frame):
