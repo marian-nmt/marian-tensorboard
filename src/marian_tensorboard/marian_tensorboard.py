@@ -255,7 +255,9 @@ class MLFlowTrackingWriter(LogWriter):
 class ConvertionJob(threading.Thread):
     """Job connecting logging readers and writers in a subthread."""
 
-    def __init__(self, log_file, work_dir, update_freq=5, azureml=False):
+    def __init__(
+        self, log_file, work_dir, update_freq=5, tb=True, azureml=False, mlflow=False
+    ):
         threading.Thread.__init__(self)
 
         # The shutdown_flag is a threading.Event object that
@@ -265,7 +267,10 @@ class ConvertionJob(threading.Thread):
         self.log_file = Path(log_file)
         self.work_dir = Path(work_dir)
         self.update_freq = update_freq
+
+        self.tb = tb
         self.azureml = azureml
+        self.mlflow = mlflow
 
     def run(self):
         """Runs the convertion job."""
@@ -277,9 +282,12 @@ class ConvertionJob(threading.Thread):
         parser = MarianLogParser()
 
         writers = []
-        writers.append(TensorboardWriter(log_dir))
+        if self.tb:
+            writers.append(TensorboardWriter(log_dir))
         if self.azureml:
             writers.append(AzureMLMetricsWriter())
+        if self.mlflow:
+            writers.append(MLFlowTrackingWriter())
 
         first = True
         while not self.shutdown_flag.is_set():
@@ -353,7 +361,14 @@ def main():
 
             update_freq = 0 if args.offline else args.update_freq
 
-            job = ConvertionJob(log_file, args.work_dir, update_freq, args.azureml)
+            job = ConvertionJob(
+                log_file,
+                args.work_dir,
+                update_freq,
+                tb='tb' in args.tool,
+                azureml='azureml' in args.tool,
+                mlflow='mlflow' in args.tool,
+            )
             job.start()
             jobs.append(job)
 
@@ -362,10 +377,15 @@ def main():
                 job.join()
             logger.info("Done")
 
-        if not args.azureml:
-            logger.info("Starting TensorBoard server...")
-            launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
-            logger.info(f"Serving TensorBoard at https://localhost:{args.port}/")
+        if 'tb' in args.tool:
+            if args.port > 0:
+                logger.info("Starting TensorBoard server...")
+                launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
+                logger.info(f"Serving TensorBoard at https://localhost:{args.port}/")
+            else:
+                logger.info(
+                    "Invalid port number, local TensorBoard server will not be started"
+                )
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
@@ -401,6 +421,12 @@ def parse_user_args():
         required=True,
     )
     parser.add_argument(
+        "-t",
+        "--tool",
+        nargs="+",
+        help="set visualization tools: tb, azureml, mlflow, default: tb",
+    )
+    parser.add_argument(
         "-w",
         "--work-dir",
         help="TensorBoard logging directory, default: logdir",
@@ -424,11 +450,6 @@ def parse_user_args():
         help="do not monitor for log updates, overwrites --update-freq",
         action="store_true",
     )
-    parser.add_argument(
-        "--azureml",
-        help="generate Azure ML Metrics; updates --work-dir automatically",
-        action="store_true",
-    )
     parser.add_argument("--debug", help="print debug messages", action="store_true")
     parser.add_argument(
         "--version", action="version", version="%(prog)s {}".format(VERSION)
@@ -440,12 +461,15 @@ def parse_user_args():
         logging.DEBUG if args.debug else logging.INFO
     )
 
-    # Set --azureml automatically if running on Azure ML
+    if args.tool is None:
+        args.tool = []
+
+    # Set azureml automatically if running on Azure ML
     azureml_run_id = os.getenv("AZUREML_RUN_ID", None)
     if azureml_run_id:
-        args.azureml = True
+        args.tool.append('azureml')
 
-    if args.azureml:
+    if 'azureml' in args.tool or 'mlflow' in args.tool:
         # Try to set TensorBoard logdir to the one set on Azure ML
         if not args.work_dir:
             args.work_dir = os.getenv("AZUREML_TB_PATH", None)
@@ -458,6 +482,10 @@ def parse_user_args():
     if not args.work_dir:
         args.work_dir = "logdir"
 
+    if not args.tool:
+        args.tool.append('tb')
+
+    args.tool = set([name.lower() for name in args.tool])
     return args
 
 
