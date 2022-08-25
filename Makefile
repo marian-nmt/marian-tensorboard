@@ -11,6 +11,7 @@ venv:
 # Install requirements
 install: requirements.txt venv
 	source venv/bin/activate && pip install -r $<
+	source venv/bin/activate && pip install --upgrade requests
 
 # Run unit tests
 test: venv

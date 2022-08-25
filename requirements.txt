@@ -1,5 +1,7 @@
 azureml-core
+azureml-mlflow
 black
+mlflow
 pytest
 tensorboard
 tensorboardX
