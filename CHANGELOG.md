@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 0.1.0 (25/8/2022)
+
+- Added `--tool` option for choosing logging into TensorBoard or AzureML or both
+- Removed `--azureml` option
+- Setting `--port 0` will skip starting a local TensorBoard server
+- Fixed a bug with loading version number when calling the script directly
+
 ## Version 0.0.5 (19/8/2022)
 
 - Trying to set working directory on Azure ML to `/tb_logs`
