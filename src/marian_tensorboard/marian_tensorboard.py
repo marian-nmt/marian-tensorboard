@@ -28,13 +28,15 @@ def get_marian_tensorboard_version():
 try:
     from .version import __version__ as VERSION
 except ImportError:
-    # The relative import will not work when calling this script directly
-    # during development, so extract the version from the file
+    # Extract the version number from the file as a backup - the relative
+    # import will not work when calling the script directly during development.
     # Note that adding the script directory to PYTHONPATH and importing version
     # as a module breaks launching TensorBoard server. TODO: debug and fix
     VERSION = get_marian_tensorboard_version()
 
-UPDATE_FREQ = 10  # Monitoring for updates in log files every this number of seconds
+# Monitoring for updates in log files every this number of seconds. Note that
+# it also determines length of gentle script exit
+UPDATE_FREQ = 10
 
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
