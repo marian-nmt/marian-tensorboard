@@ -34,12 +34,15 @@ TensorBoard charts every 5 seconds unless `--offline` is used.
 
 ### Azure ML
 
-    marian-tensorboard -f path/to/train.log [--azureml]
+    marian-tensorboard -f path/to/train.log [-t tb azureml]
 
 Then on Azure Machine Learning VM go to the __Metrics__ tab or start a
-TensorBoard server under the __Endpoints__ tab. Using `--azureml` will try to
-set `--work-dir` automatically for the TensorBoard that is run internally at
-Azure ML and prevent the script from starting own instance.
+TensorBoard server under the __Endpoints__ tab.
+
+Note that logging into Azure ML Metrics is automatically enabled if Azure ML
+Run ID is detected. Specify `-t azureml` to disable TensorBoard logging.
+If Azure ML is enabled, the script will not start an own TensorBoard server
+instance.
 
 ## Contributors
 

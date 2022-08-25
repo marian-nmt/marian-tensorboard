@@ -9,20 +9,34 @@ import pickle
 import re
 import signal
 import sys
-import tensorboard as tb
-import tensorboardX as tbx
 import threading
 import time
-
-try:
-    from .version import __version__ as VERSION
-except ImportError:
-    VERSION = 'unknown'
 
 from functools import reduce
 from pathlib import Path
 
-UPDATE_FREQ = 10  # Monitoring for updates in log files every this number of seconds
+
+def get_marian_tensorboard_version():
+    """Returns package version"""
+    variables = {}
+    file_path = Path(__file__).parent / "version.py"
+    with open(file_path, "r", encoding="utf8") as file_io:
+        exec(file_io.read(), variables)
+    return variables["__version__"]
+
+
+try:
+    from .version import __version__ as VERSION
+except ImportError:
+    # Extract the version number from the file as a backup - the relative
+    # import will not work when calling the script directly during development.
+    # Note that adding the script directory to PYTHONPATH and importing version
+    # as a module breaks launching TensorBoard server. TODO: debug and fix
+    VERSION = get_marian_tensorboard_version()
+
+# Monitoring for updates in log files every this number of seconds. Note that
+# it also determines length of gentle script exit
+UPDATE_FREQ = 10
 
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
@@ -36,6 +50,8 @@ class LogFileReader(object):
         self.log_file = Path(path)
         if workdir:
             self.state_file = Path(workdir) / "state.pkl"
+            if not Path(workdir).exists():
+                Path(workdir).mkdir(parents=True, exist_ok=True)
         else:
             self.state_file = None
         self.last_update = 0
@@ -206,6 +222,8 @@ class TensorboardWriter(LogWriter):
     """Writing logs for TensorBoard using TensorboardX."""
 
     def __init__(self, path):
+        import tensorboardX as tbx
+
         self.writer = tbx.SummaryWriter(path)
         logger.info(f"Exporting to Tensorboard directory: {path}")
 
@@ -224,8 +242,8 @@ class AzureMLMetricsWriter(LogWriter):
     def __init__(self):
         from azureml.core import Run
 
+        logger.info("Logging to Azure ML Metrics...")
         self.writer = Run.get_context()
-        logger.info("Logging to AzureML Metrics...")
 
     def write(self, type, time, update, metric, value):
         if type == "scalar":
@@ -234,10 +252,38 @@ class AzureMLMetricsWriter(LogWriter):
             pass
 
 
+class MLFlowTrackingWriter(LogWriter):
+    """Writing logs for MLflow Tracking."""
+
+    def __init__(self):
+        import mlflow
+
+        self.run_id = None
+        logger.info("Autologging to MLflow...")
+        try:
+            mlflow.autolog()
+            self.run_id = mlflow.active_run().info.run_id
+            logger.info(f"MLflow RunID: {run_id}")
+        except:
+            logger.warning("Could not autolog or extract MLflow run ID")
+
+    def write(self, type, time, update, metric, value):
+        if not self.run_id:
+            return
+        if type == "scalar":
+            mlflow.log_metric(metric, value, step=update)
+        elif type == "text":
+            mlflow.log_param(metric, value)
+        else:
+            pass
+
+
 class ConvertionJob(threading.Thread):
     """Job connecting logging readers and writers in a subthread."""
 
-    def __init__(self, log_file, work_dir, update_freq=5, azureml=False):
+    def __init__(
+        self, log_file, work_dir, update_freq=5, tb=True, azureml=False, mlflow=False
+    ):
         threading.Thread.__init__(self)
 
         # The shutdown_flag is a threading.Event object that
@@ -247,7 +293,10 @@ class ConvertionJob(threading.Thread):
         self.log_file = Path(log_file)
         self.work_dir = Path(work_dir)
         self.update_freq = update_freq
+
+        self.tb = tb
         self.azureml = azureml
+        self.mlflow = mlflow
 
     def run(self):
         """Runs the convertion job."""
@@ -259,9 +308,12 @@ class ConvertionJob(threading.Thread):
         parser = MarianLogParser()
 
         writers = []
-        writers.append(TensorboardWriter(log_dir))
+        if self.tb:
+            writers.append(TensorboardWriter(log_dir))
         if self.azureml:
             writers.append(AzureMLMetricsWriter())
+        if self.mlflow:
+            writers.append(MLFlowTrackingWriter())
 
         first = True
         while not self.shutdown_flag.is_set():
@@ -309,6 +361,8 @@ class ServiceExit(Exception):
 def main():
     args = parse_user_args()
 
+    logger.info(f"Enabled tools: {', '.join(args.tool)}")
+
     # Setup signal handling
     def service_shutdown(signum, frame):
         raise ServiceExit
@@ -335,7 +389,14 @@ def main():
 
             update_freq = 0 if args.offline else args.update_freq
 
-            job = ConvertionJob(log_file, args.work_dir, update_freq, args.azureml)
+            job = ConvertionJob(
+                log_file,
+                args.work_dir,
+                update_freq,
+                tb="tb" in args.tool,
+                azureml="azureml" in args.tool,
+                mlflow="mlflow" in args.tool,
+            )
             job.start()
             jobs.append(job)
 
@@ -344,10 +405,15 @@ def main():
                 job.join()
             logger.info("Done")
 
-        if not args.azureml:
-            logger.info("Starting TensorBoard server...")
-            launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
-            logger.info(f"Serving TensorBoard at https://localhost:{args.port}/")
+        if "tb" in args.tool:
+            if args.port > 0:
+                logger.info("Starting TensorBoard server...")
+                launch_tensorboard(args.work_dir, args.port)  # Start teansorboard
+                logger.info(f"Serving TensorBoard at https://localhost:{args.port}/")
+            else:
+                logger.info(
+                    "Not starting a local TensorBoard server. Logs are still generated"
+                )
 
         while True:  # Keep the main thread running so that signals are not ignored
             time.sleep(0.5)
@@ -367,8 +433,10 @@ def main():
 
 def launch_tensorboard(logdir, port):
     """Launches TensorBoard server."""
+    import tensorboard as tb
+
     tb_server = tb.program.TensorBoard()
-    tb_server.configure(argv=[None, "--logdir", logdir, "--port", str(port)])
+    tb_server.configure(argv=[None, "--logdir", str(logdir), "--port", str(port)])
     tb_server.launch()
 
 
@@ -383,9 +451,15 @@ def parse_user_args():
         required=True,
     )
     parser.add_argument(
-        "-w",
-        "--work-dir",
-        help="TensorBoard logging directory, default: logdir",
+        "-t",
+        "--tool",
+        nargs="+",
+        help="set visualization tools: tb, azureml, default: tb",
+        # Note that "mlflow" is not yet fully supported
+        choices=["tb", "azureml"],
+    )
+    parser.add_argument(
+        "-w", "--work-dir", help="TensorBoard logging directory, default: logdir"
     )
     parser.add_argument(
         "-p",
@@ -406,11 +480,6 @@ def parse_user_args():
         help="do not monitor for log updates, overwrites --update-freq",
         action="store_true",
     )
-    parser.add_argument(
-        "--azureml",
-        help="generate Azure ML Metrics; updates --work-dir automatically",
-        action="store_true",
-    )
     parser.add_argument("--debug", help="print debug messages", action="store_true")
     parser.add_argument(
         "--version", action="version", version="%(prog)s {}".format(VERSION)
@@ -422,12 +491,18 @@ def parse_user_args():
         logging.DEBUG if args.debug else logging.INFO
     )
 
-    # Set --azureml automatically if running on Azure ML
+    # Add azureml automatically if running on Azure ML and no tools were
+    # specified in command-line arguments
     azureml_run_id = os.getenv("AZUREML_RUN_ID", None)
-    if azureml_run_id:
-        args.azureml = True
+    if azureml_run_id and args.tool is not None:
+        args.tool.append("azureml")
+        # Do not start the server on Azure ML if automatically detected
+        args.port = 0
 
-    if args.azureml:
+    if args.tool is None:
+        args.tool = []
+
+    if "azureml" in args.tool or "mlflow" in args.tool:
         # Try to set TensorBoard logdir to the one set on Azure ML
         if not args.work_dir:
             args.work_dir = os.getenv("AZUREML_TB_PATH", None)
@@ -436,10 +511,16 @@ def parse_user_args():
         logger.info(f"AzureML RunID: {azureml_run_id}")
         logger.info(f"AzureML Setting TensorBoard logdir: {args.work_dir}")
 
+    # If none tool was specified in arguments, default to TensorBoard
+    if not args.tool:
+        args.tool.append("tb")
+
     # Set default value for --work-dir
     if not args.work_dir:
         args.work_dir = "logdir"
 
+    # Make it a set for convenience
+    args.tool = set([name.lower() for name in args.tool])
     return args
 
 

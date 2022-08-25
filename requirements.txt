@@ -1,5 +1,7 @@
-azureml-core
-black
-pytest
 tensorboard
 tensorboardX
+azureml-core
+mlflow
+azureml-mlflow
+black
+pytest
