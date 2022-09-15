@@ -1,5 +1,9 @@
 # Changelog
 
+## Version 0.1.1 (15/9/2022)
+
+- Updated logic for `--tool` in cases where AzureML is not detected
+
 ## Version 0.1.0 (25/8/2022)
 
 - Added `--tool` option for choosing logging into TensorBoard or AzureML or both

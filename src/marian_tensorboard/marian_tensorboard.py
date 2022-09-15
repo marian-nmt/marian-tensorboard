@@ -491,11 +491,31 @@ def parse_user_args():
         logging.DEBUG if args.debug else logging.INFO
     )
 
+    # Case breakdown:
+    # 1. '-t' not provided, AzureML not detected
+    #   => changing to '-t tb'
+    # 2. '-t' not provided, AzureML detected
+    #   => changing to '-t tb azureml'
+    # 3. provided '-t tb', AzureML not detected
+    #   => no changes
+    # 4. provided '-t tb', AzureML detected
+    #   => changing to '-t tb azureml -p 0'
+    # 5. provided '-t tb azureml', AzureML not detected
+    #   => changing to `-t tb`, warning for AzureML
+    # 6. provided '-t tb azureml', AzureML detected
+    #   => no changes
+    # 7. provided '-t azureml', AzureML not detected
+    #   => warning for AzureML, exception
+    # 8. provided '-t azureml', AzureML detected
+    #   => no changes
+
+    tools_set = args.tool != None
+
     # Add azureml automatically if running on Azure ML and no tools were
     # specified in command-line arguments
     azureml_run_id = os.getenv("AZUREML_RUN_ID", None)
-    if azureml_run_id and args.tool is not None:
-        args.tool.append("azureml")
+    if azureml_run_id and not tools_set:
+        args.tool = ["azureml"]
         # Do not start the server on Azure ML if automatically detected
         args.port = 0
 
@@ -508,11 +528,27 @@ def parse_user_args():
             args.work_dir = os.getenv("AZUREML_TB_PATH", None)
         if not args.work_dir:
             args.work_dir = "/tb_logs"
-        logger.info(f"AzureML RunID: {azureml_run_id}")
-        logger.info(f"AzureML Setting TensorBoard logdir: {args.work_dir}")
 
-    # If none tool was specified in arguments, default to TensorBoard
-    if not args.tool:
+        if azureml_run_id:
+            logger.info(f"AzureML RunID: {azureml_run_id}")
+            logger.info(f"AzureML Setting TensorBoard logdir: {args.work_dir}")
+        else:
+            logger.warning(
+                "AzureML run ID not found in the 'AZUREML_RUN_ID' envvar, "
+                "logging to AzureML is disabled"
+            )
+            args.tool = [t for t in args.tool if t != 'azureml']
+
+            # `-t azureml` was set, but AzureML cannot be detected
+            if tools_set and len(args.tool) == 0:
+                logger.error(
+                    "Could not log into AzureML, but it was the only tool selected, exit"
+                )
+                sys.exit(os.EX_UNAVAILABLE)
+
+    # If none tool was specified in arguments, add TensorBoard regardless if
+    # Azure ML was detected or not
+    if not tools_set:
         args.tool.append("tb")
 
     # Set default value for --work-dir

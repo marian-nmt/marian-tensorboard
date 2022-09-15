@@ -30,7 +30,7 @@ Both will add new `marian-tensorboard` command.
     marian-tensorboard -f examples/train.encs.*.log
 
 Open a web browser at `https://localhost:6006`. The script will update the
-TensorBoard charts every 5 seconds unless `--offline` is used.
+TensorBoard charts every `--update-freq` seconds unless `--offline` is used.
 
 ### Azure ML
 
