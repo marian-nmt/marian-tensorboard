@@ -38,6 +38,10 @@ except ImportError:
 # it also determines length of gentle script exit
 UPDATE_FREQ = 10
 
+# Use the number of batch "updates" as the step statistic (x-Axis) in tensorboard.
+# Other options are "sentences" and "labels".
+UPDATE_STEP = "updates"
+
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
 logging.basicConfig(level=logging.ERROR)
@@ -105,7 +109,7 @@ class MarianLogParser(object):
             r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]"  # Ep. 1.234 :
             r"Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]"  # Up. 1234 :
             r"Sen\.[\s](?P<sentences>[0-9|,]+).*?"  # Sen. 1,234,567 :
-            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+).*?"  # Cost 1.23456 :
+            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)(\ (?P<dispLabels>[\d,]+)\ \@\ (?P<batchLabels>[\d,]+)\ after\ (?P<totalLabels>[\d,]+))?.*?"  # Cost 0.14988677 * 24,252,140 @ 4,877,125 after 211,752,292,869
             r"L\.r\.[\s](?P<learnrate>[\d\.]+e-[\d]+)"  # L.r. 1.234-05
         )
         self.valid_re = re.compile(
@@ -467,6 +471,13 @@ def parse_user_args():
         help="port number for TensorBoard, default: %(default)s",
         type=int,
         default=6006,
+    )
+    parser.add_argument(
+        "-s",
+        "--step",
+        help="chose which stat to use for tensorboard step, default: %(default)s",
+        type=str,
+        default=UPDATE_STEP,
     )
     parser.add_argument(
         "-u",
