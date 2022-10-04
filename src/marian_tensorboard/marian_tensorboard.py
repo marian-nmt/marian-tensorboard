@@ -104,13 +104,14 @@ class MarianLogParser(object):
     """Parser for Marian logs."""
 
     def __init__(self, step="updates"):
-        self.total_sentences = 0
         self.train_re = re.compile(
             r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]"  # Ep. 1.234 :
             r"Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]"  # Up. 1234 :
             r"Sen\.[\s](?P<sentences>[0-9|,]+).*?"  # Sen. 1,234,567 :
             r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)(?: \* (?P<disp_labels>[\d,]+) \@ (?P<batch_labels>[\d,]+) after (?P<total_labels>[\d,]+))?.*?" 
             # Cost 0.14988677 * 24,252,140 @ 4,877,125 after 211,752,292,869
+            r"(?P<wordspersecond>[\d\.]+) words/s.*?" #
+            r"(?P<gradientnorm>[\d\.]+) :.*?" #
             r"L\.r\.[\s](?P<learnrate>[\d\.]+e-[\d]+)"  # L.r. 1.234-05
         )
         self.valid_re = re.compile(
@@ -122,7 +123,7 @@ class MarianLogParser(object):
         self.config_re = re.compile(
             r"\[config\].*?(?P<config_name>[A-z|-]+):[\s]+(?P<config_value>[\d\.|A-z]+)"
         )
-        self.total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d.]+)")
+
         self.step = step
         self.last_step = 0
 
@@ -139,8 +140,6 @@ class MarianLogParser(object):
         m = self.valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
-            # epoch = float(m.group("epoch"))
-            # update = int(m.group("updates"))
             metric = m.group("metric")
             value = float(m.group("value"))
             stalled = int(m.group("stalled") or 0)
@@ -163,24 +162,26 @@ class MarianLogParser(object):
         if m:
             _date, _time, *rest = line.split()
             epoch = float(m.group("epoch"))
-            update = int(m.group("updates"))
-            sentences = int(str(m.group("sentences")).replace(",", ""))
+            total_updates = int(m.group("updates"))
+            total_sentences = int(str(m.group("sentences")).replace(",", ""))
 
             metric = m.group("metric")
             value = float(m.group("value"))
             batch_labels = int(m.group("batch_labels").replace(",", ""))
             total_labels = int(m.group("total_labels").replace(",", ""))
 
-            learnrate = float(m.group("learnrate"))
+            wps           = float(m.group("wordspersecond"))
+            gradient_norm = float(m.group("gradientnorm"))
+            learnrate     = float(m.group("learnrate"))
 
             if self.step == "updates":
-                self.last_step = update
+                self.last_step = total_updates
             elif self.step == "sentences":
-                self.last_step = sentences
+                self.last_step = total_sentences
             elif self.step == "labels":
                 self.last_step = total_labels
             else:
-                self.step = update
+                self.step = total_updates
 
             yield (
                 "scalar",
@@ -200,42 +201,56 @@ class MarianLogParser(object):
                 "scalar",
                 self.wall_time(_date + " " + _time),
                 self.last_step,
-                f"train/batch_labels",
+                f"train/effective_batch_size",
                 batch_labels,
             )
+
+            if self.step != "updates":
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/total_updates",
+                    total_updates,
+                )
+            if self.step != "sentences":
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/total_sentences",
+                    total_sentences,
+                )
+            if self.step != "labels":
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/total_labels",
+                    total_labels,
+                )
+
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
                 self.last_step,
-                f"train/total_labels",
-                total_labels,
-            )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                self.last_step,
-                f"train/update_sent",
-                sentences,
-            )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                self.last_step,
-                f"train/total_sent",
-                sentences + self.total_sentences,
-            )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                self.last_step,
-                f"train/learn_rate",
+                f"train/learning_rate",
                 learnrate,
             )
-
-        m = self.total_sentences_re.search(line)
-        if m:
-            epoch_sentence = int(m.group("epoch_sentence"))
-            self.total_sentences += epoch_sentence
+            yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                self.last_step,
+                f"train/gradient_norm",
+                gradient_norm,
+            )
+            yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                self.last_step,
+                f"train/words_per_second",
+                wps,
+            )
 
     def wall_time(self, string):
         """Converts timestamp string into strptime. Strips brackets if necessary."""
@@ -442,6 +457,7 @@ def main():
                 job.join()
             logger.info("Done")
 
+        # @romang: this seems to be executed despite setting --offline and the semantics of offline are not clear
         if "tb" in args.tool:
             if args.port > 0:
                 logger.info("Starting TensorBoard server...")
