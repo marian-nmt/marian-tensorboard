@@ -38,6 +38,10 @@ except ImportError:
 # it also determines length of gentle script exit
 UPDATE_FREQ = 10
 
+# Use the number of batch "updates" as the step statistic (x-Axis) in tensorboard.
+# Other options are "sentences" and "labels".
+UPDATE_STEP = "updates"
+
 # Setup logger suppressing logging from external modules
 logger = logging.getLogger("marian-tensorboard")
 logging.basicConfig(level=logging.ERROR)
@@ -99,13 +103,15 @@ class LogFileReader(object):
 class MarianLogParser(object):
     """Parser for Marian logs."""
 
-    def __init__(self):
-        self.total_sentences = 0
+    def __init__(self, step="updates"):
         self.train_re = re.compile(
             r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]"  # Ep. 1.234 :
             r"Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]"  # Up. 1234 :
             r"Sen\.[\s](?P<sentences>[0-9|,]+).*?"  # Sen. 1,234,567 :
-            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+).*?"  # Cost 1.23456 :
+            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)(?: \* (?P<disp_labels>[\d,]+) \@ (?P<batch_labels>[\d,]+) after (?P<total_labels>[\d,]+))?.*?"
+            # Cost 0.14988677 * 24,252,140 @ 4,877,125 after 211,752,292,869
+            r"(?P<wordspersecond>[\d\.]+) words/s.*?"  #
+            r"(?P<gradientnorm>[\d\.]+) :.*?"  #
             r"L\.r\.[\s](?P<learnrate>[\d\.]+e-[\d]+)"  # L.r. 1.234-05
         )
         self.valid_re = re.compile(
@@ -117,7 +123,9 @@ class MarianLogParser(object):
         self.config_re = re.compile(
             r"\[config\].*?(?P<config_name>[A-z|-]+):[\s]+(?P<config_value>[\d\.|A-z]+)"
         )
-        self.total_sentences_re = re.compile(r"Seen[\s]+(?P<epoch_sentence>[\d.]+)")
+
+        self.step = step
+        self.last_step = 0
 
     def parse_line(self, line):
         """
@@ -132,22 +140,20 @@ class MarianLogParser(object):
         m = self.valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
-            epoch = float(m.group("epoch"))
-            update = int(m.group("updates"))
             metric = m.group("metric")
             value = float(m.group("value"))
             stalled = int(m.group("stalled") or 0)
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
-                update,
+                self.last_step,
                 f"valid/{metric}",
                 value,
             )
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
-                update,
+                self.last_step,
                 f"valid/{metric}_stalled",
                 stalled,
             )
@@ -156,51 +162,95 @@ class MarianLogParser(object):
         if m:
             _date, _time, *rest = line.split()
             epoch = float(m.group("epoch"))
-            update = int(m.group("updates"))
-            sentences = int(str(m.group("sentences")).replace(",", ""))
+            total_updates = int(m.group("updates"))
+            total_sentences = int(str(m.group("sentences")).replace(",", ""))
+
             metric = m.group("metric")
             value = float(m.group("value"))
+            batch_labels = int(m.group("batch_labels").replace(",", ""))
+            total_labels = int(m.group("total_labels").replace(",", ""))
+
+            wps = float(m.group("wordspersecond"))
+            gradient_norm = float(m.group("gradientnorm"))
             learnrate = float(m.group("learnrate"))
+
+            if self.step == "updates":
+                self.last_step = total_updates
+            elif self.step == "sentences":
+                self.last_step = total_sentences
+            elif self.step == "labels":
+                self.last_step = total_labels
+            else:
+                self.step = total_updates
+
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
-                update,
+                self.last_step,
                 "train/epoch",
                 epoch,
             )
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
-                update,
+                self.last_step,
                 f"train/{metric}",
                 value,
             )
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
-                update,
-                f"train/update_sent",
-                sentences,
-            )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                update,
-                f"train/total_sent",
-                sentences + self.total_sentences,
-            )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                update,
-                f"train/learn_rate",
-                learnrate,
+                self.last_step,
+                f"train/effective_batch_size",
+                batch_labels,
             )
 
-        m = self.total_sentences_re.search(line)
-        if m:
-            epoch_sentence = int(m.group("epoch_sentence"))
-            self.total_sentences += epoch_sentence
+            if self.step != "updates":
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/total_updates",
+                    total_updates,
+                )
+            if self.step != "sentences":
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/total_sentences",
+                    total_sentences,
+                )
+            if self.step != "labels":
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/total_labels",
+                    total_labels,
+                )
+
+            yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                self.last_step,
+                f"train/learning_rate",
+                learnrate,
+            )
+            yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                self.last_step,
+                f"train/gradient_norm",
+                gradient_norm,
+            )
+            yield (
+                "scalar",
+                self.wall_time(_date + " " + _time),
+                self.last_step,
+                f"train/words_per_second",
+                wps,
+            )
 
     def wall_time(self, string):
         """Converts timestamp string into strptime. Strips brackets if necessary."""
@@ -278,11 +328,18 @@ class MLFlowTrackingWriter(LogWriter):
             pass
 
 
-class ConvertionJob(threading.Thread):
+class ConversionJob(threading.Thread):
     """Job connecting logging readers and writers in a subthread."""
 
     def __init__(
-        self, log_file, work_dir, update_freq=5, tb=True, azureml=False, mlflow=False
+        self,
+        log_file,
+        work_dir,
+        update_freq=5,
+        step="updates",
+        tb=True,
+        azureml=False,
+        mlflow=False,
     ):
         threading.Thread.__init__(self)
 
@@ -293,6 +350,7 @@ class ConvertionJob(threading.Thread):
         self.log_file = Path(log_file)
         self.work_dir = Path(work_dir)
         self.update_freq = update_freq
+        self.step = step
 
         self.tb = tb
         self.azureml = azureml
@@ -305,7 +363,7 @@ class ConvertionJob(threading.Thread):
 
         log_dir = self.work_dir / self._abs_path_to_dir_name(self.log_file)
         reader = LogFileReader(path=self.log_file, workdir=log_dir)
-        parser = MarianLogParser()
+        parser = MarianLogParser(step=self.step)
 
         writers = []
         if self.tb:
@@ -387,12 +445,15 @@ def main():
                 logger.error(f"Log file not found: {log_file}")
                 raise FileNotFoundError
 
+            # --offline simply means that the log file is not monitored for updates,
+            # so it is equivalent to --update-freq 0
             update_freq = 0 if args.offline else args.update_freq
 
-            job = ConvertionJob(
+            job = ConversionJob(
                 log_file,
                 args.work_dir,
                 update_freq,
+                args.step,
                 tb="tb" in args.tool,
                 azureml="azureml" in args.tool,
                 mlflow="mlflow" in args.tool,
@@ -405,6 +466,8 @@ def main():
                 job.join()
             logger.info("Done")
 
+        # --offline simply means that the log file is not monitored for updates,
+        # but the TensorBoard server still can be started for the user
         if "tb" in args.tool:
             if args.port > 0:
                 logger.info("Starting TensorBoard server...")
@@ -467,6 +530,13 @@ def parse_user_args():
         help="port number for TensorBoard, default: %(default)s",
         type=int,
         default=6006,
+    )
+    parser.add_argument(
+        "-s",
+        "--step",
+        help="chose which stat to use for tensorboard step (updates, sentences, labels), default: %(default)s",
+        choices=["updates", "sentences", "labels"],
+        default=UPDATE_STEP,
     )
     parser.add_argument(
         "-u",
