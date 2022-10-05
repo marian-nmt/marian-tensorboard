@@ -140,9 +140,15 @@ class MarianLogParser(object):
         m = self.valid_re.search(line)
         if m:
             _date, _time, *rest = line.split()
+            epoch = float(m.group("epoch"))
+            update = int(m.group("updates"))
             metric = m.group("metric")
             value = float(m.group("value"))
             stalled = int(m.group("stalled") or 0)
+
+            if self.step == "updates":
+                self.last_step = update
+
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
@@ -259,6 +265,10 @@ class MarianLogParser(object):
         if string.endswith("]"):
             string = string[:-1]
         return calendar.timegm(time.strptime(string, "%Y-%m-%d %H:%M:%S"))
+
+    def reset(self):
+        """Resets the internal state of the parser. Used for unit testing."""
+        self.last_step = 0
 
 
 class LogWriter(object):

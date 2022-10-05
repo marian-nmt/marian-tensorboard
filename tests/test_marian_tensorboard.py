@@ -32,9 +32,12 @@ EXPECTED_OUTPUTS = (
     [
         ('scalar', 1651442049, 20785, 'train/epoch', 24.151),
         ('scalar', 1651442049, 20785, 'train/Cost', 0.12538165),
-        ('scalar', 1651442049, 20785, 'train/update_sent', 646829638),
-        ('scalar', 1651442049, 20785, 'train/total_sent', 646829638),
-        ('scalar', 1651442049, 20785, 'train/learn_rate', 0.00065259),
+        ('scalar', 1651442049, 20785, 'train/effective_batch_size', 2305265),
+        ('scalar', 1651442049, 20785, 'train/total_sentences', 646829638),
+        ('scalar', 1651442049, 20785, 'train/total_labels', 24150553337),
+        ('scalar', 1651442049, 20785, 'train/learning_rate', 0.00065259),
+        ('scalar', 1651442049, 20785, 'train/gradient_norm', 0.0552),
+        ('scalar', 1651442049, 20785, 'train/words_per_second', 1193424.53),
     ],
 )
 
