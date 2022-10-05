@@ -445,6 +445,8 @@ def main():
                 logger.error(f"Log file not found: {log_file}")
                 raise FileNotFoundError
 
+            # --offline simply means that the log file is not monitored for updates,
+            # so it is equivalent to --update-freq 0
             update_freq = 0 if args.offline else args.update_freq
 
             job = ConversionJob(
@@ -464,7 +466,8 @@ def main():
                 job.join()
             logger.info("Done")
 
-        # @romang: this seems to be executed despite setting --offline and the semantics of offline are not clear
+        # --offline simply means that the log file is not monitored for updates,
+        # but the TensorBoard server still can be started for the user
         if "tb" in args.tool:
             if args.port > 0:
                 logger.info("Starting TensorBoard server...")
