@@ -1,0 +1,31 @@
+name: "Unit tests"
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ '**' ]
+
+jobs:
+  testing:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.8, 3.9]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Install requirements
+        run: |
+            python3 -m pip install -r requirements.txt
+            python3 -m pip install --upgrade click
+      - name: Python information
+        run: |
+            python3 --version
+            python3 -m pip freeze
+      - name: Unit tests
+        run: pytest -v
+      - name: Code formatting
+        run: black -S --check src/ tests/
+
