@@ -1,5 +1,10 @@
 # Changelog
 
+## Version 0.2.0 (5/10/2022)
+
+- Added `--step` option for choosing which stat to use for TensorBoard step
+- Parsing additional statistics: WPS, gradient norm, label counts
+
 ## Version 0.1.1 (15/9/2022)
 
 - Updated logic for `--tool` in cases where AzureML is not detected

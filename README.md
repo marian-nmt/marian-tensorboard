@@ -49,6 +49,7 @@ instance.
 * Amr Hendy
 * Kevin Duh
 * Roman Grundkiewicz
+* Marcin Junczys-Dowmunt
 
 See [CHANGELOG.md](CHANGELOG.md).
 
