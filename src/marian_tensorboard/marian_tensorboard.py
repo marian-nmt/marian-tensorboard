@@ -108,10 +108,10 @@ class MarianLogParser(object):
             r"Ep\.[\s]+(?P<epoch>[\d.]+)[\s]+:[\s]"  # Ep. 1.234 :
             r"Up\.[\s](?P<updates>[\d]+)[\s]+:[\s]"  # Up. 1234 :
             r"Sen\.[\s](?P<sentences>[0-9|,]+).*?"  # Sen. 1,234,567 :
-            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)(?: \* (?P<disp_labels>[\d,]+) \@ (?P<batch_labels>[\d,]+) after (?P<total_labels>[\d,]+))?.*?" 
+            r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)(?: \* (?P<disp_labels>[\d,]+) \@ (?P<batch_labels>[\d,]+) after (?P<total_labels>[\d,]+))?.*?"
             # Cost 0.14988677 * 24,252,140 @ 4,877,125 after 211,752,292,869
-            r"(?P<wordspersecond>[\d\.]+) words/s.*?" #
-            r"(?P<gradientnorm>[\d\.]+) :.*?" #
+            r"(?P<wordspersecond>[\d\.]+) words/s.*?"  #
+            r"(?P<gradientnorm>[\d\.]+) :.*?"  #
             r"L\.r\.[\s](?P<learnrate>[\d\.]+e-[\d]+)"  # L.r. 1.234-05
         )
         self.valid_re = re.compile(
@@ -170,9 +170,9 @@ class MarianLogParser(object):
             batch_labels = int(m.group("batch_labels").replace(",", ""))
             total_labels = int(m.group("total_labels").replace(",", ""))
 
-            wps           = float(m.group("wordspersecond"))
+            wps = float(m.group("wordspersecond"))
             gradient_norm = float(m.group("gradientnorm"))
-            learnrate     = float(m.group("learnrate"))
+            learnrate = float(m.group("learnrate"))
 
             if self.step == "updates":
                 self.last_step = total_updates
@@ -332,7 +332,14 @@ class ConversionJob(threading.Thread):
     """Job connecting logging readers and writers in a subthread."""
 
     def __init__(
-        self, log_file, work_dir, update_freq=5, step="updates", tb=True, azureml=False, mlflow=False
+        self,
+        log_file,
+        work_dir,
+        update_freq=5,
+        step="updates",
+        tb=True,
+        azureml=False,
+        mlflow=False,
     ):
         threading.Thread.__init__(self)
 
