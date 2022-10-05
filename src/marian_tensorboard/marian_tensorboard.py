@@ -532,7 +532,7 @@ def parse_user_args():
         "-s",
         "--step",
         help="chose which stat to use for tensorboard step (updates, sentences, labels), default: %(default)s",
-        type=str,
+        choices=["updates", "sentences", "labels"],
         default=UPDATE_STEP,
     )
     parser.add_argument(
