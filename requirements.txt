@@ -3,5 +3,6 @@ tensorboardX
 azureml-core
 mlflow
 azureml-mlflow
+click
 black
 pytest
