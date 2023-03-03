@@ -1,5 +1,9 @@
 # Changelog
 
+## Version 0.2.1 (3/3/2023)
+
+- Fixed a bug when parsing logs without batch or total labels (GitHub issue #12)
+
 ## Version 0.2.0 (5/10/2022)
 
 - Added `--step` option for choosing which stat to use for TensorBoard step
