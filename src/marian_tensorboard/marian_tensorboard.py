@@ -169,23 +169,23 @@ class MarianLogParser(object):
             _date, _time, *rest = line.split()
             epoch = float(m.group("epoch"))
             total_updates = int(m.group("updates"))
-            total_sentences = int(str(m.group("sentences")).replace(",", ""))
+            total_sentences = self._get_group_num(m, "sentences")
 
             metric = m.group("metric")
             value = float(m.group("value"))
-            batch_labels = int(m.group("batch_labels").replace(",", ""))
-            total_labels = int(m.group("total_labels").replace(",", ""))
+            batch_labels = self._get_group_num(m, "batch_labels")
+            total_labels = self._get_group_num(m, "total_labels")
 
             wps = float(m.group("wordspersecond"))
             gradient_norm = float(m.group("gradientnorm"))
             learnrate = float(m.group("learnrate"))
 
             if self.step == "updates":
-                self.last_step = total_updates
+                self.last_step = total_updates or 0
             elif self.step == "sentences":
-                self.last_step = total_sentences
+                self.last_step = total_sentences or 0
             elif self.step == "labels":
-                self.last_step = total_labels
+                self.last_step = total_labels or 0
             else:
                 self.step = total_updates
 
@@ -203,13 +203,14 @@ class MarianLogParser(object):
                 f"train/{metric}",
                 value,
             )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                self.last_step,
-                f"train/effective_batch_size",
-                batch_labels,
-            )
+            if batch_labels is not None:
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/effective_batch_size",
+                    batch_labels,
+                )
 
             if self.step != "updates":
                 yield (
@@ -219,7 +220,7 @@ class MarianLogParser(object):
                     f"train/total_updates",
                     total_updates,
                 )
-            if self.step != "sentences":
+            if self.step != "sentences" and total_sentences is not None:
                 yield (
                     "scalar",
                     self.wall_time(_date + " " + _time),
@@ -227,7 +228,7 @@ class MarianLogParser(object):
                     f"train/total_sentences",
                     total_sentences,
                 )
-            if self.step != "labels":
+            if self.step != "labels" and total_labels is not None:
                 yield (
                     "scalar",
                     self.wall_time(_date + " " + _time),
@@ -269,6 +270,12 @@ class MarianLogParser(object):
     def reset(self):
         """Resets the internal state of the parser. Used for unit testing."""
         self.last_step = 0
+
+    def _get_group_num(self, m, group_name, cast_to=int):
+        """Returns numerical value from a named group or None"""
+        if not m or group_name not in m.groupdict() or m.group(group_name) is None:
+            return None
+        return cast_to(str(m.group(group_name)).replace(",", ""))
 
 
 class LogWriter(object):
