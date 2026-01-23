@@ -1,7 +1,5 @@
-tensorboard
-tensorboardX
-azureml-core
-mlflow
-azureml-mlflow
+tensorboard>=2.15
+tensorboardX>=2.6
+protobuf>=5.29.5
 black
 pytest
