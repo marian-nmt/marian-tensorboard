@@ -14,7 +14,6 @@ from marian_tensorboard.marian_tensorboard import (
     launch_tensorboard,
 )
 
-
 # Path to examples directory
 EXAMPLES_DIR = os.path.join(os.path.dirname(__file__), "..", "examples")
 

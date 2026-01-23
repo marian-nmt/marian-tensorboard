@@ -5,7 +5,6 @@ import pytest
 
 from marian_tensorboard.marian_tensorboard import MarianLogParser
 
-
 LOG_LINES = (
     "[2019-03-25 14:51:54] Ep. 1 : Up. 1000 : Sen. 1,269,755 : Cost 7.95987511 : Time 785.53s : 17289.59 words/s : L.r. 1.2500e-05",
     "[2019-03-25 16:37:33] [valid] Ep. 1 : Up. 5000 : ce-mean-words : 5.21277 : new best",
