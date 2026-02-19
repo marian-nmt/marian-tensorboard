@@ -1,5 +1,12 @@
 # Changelog
 
+## Version 0.2.2 (22/1/2026)
+
+- Updated protobuf to >=5.29.5, tensorboard to >=2.15 and tensorboardX to >=2.6
+- Made azureml-core and mlflow optional dependencies (install with `pip install marian-tensorboard[azureml]` or `[mlflow]`)
+- Updated minimum Python version to 3.8
+- Suppressed deprecation warnings from TensorBoard's vendored dependencies
+
 ## Version 0.2.1 (3/3/2023)
 
 - Fixed a bug when parsing logs without batch or total labels (GitHub issue #12)
