@@ -5,5 +5,3 @@ mlflow>=3.10
 azureml-mlflow>=1.60
 black>=26.1.0
 pytest
-mlflow
-azureml-mlflow
