@@ -1,5 +1,13 @@
 # Changelog
 
+## Version 0.3.0 (24/2/2026)
+
+- Added support for MLFlow with `mlflow>=3.10` and `azureml-mlflow>=1.60` as dependencies
+- Separated AzureML and MLflow initialization paths in `parse_user_args`
+- Fixed process hanging after `--offline` completion when no TensorBoard server is needed
+- Made gradient norm (`gNorm`) optional in training log regex to support older Marian log formats
+- Updated unit tests to match current parser output
+
 ## Version 0.2.2 (22/1/2026)
 
 - Updated protobuf to >=5.29.5, tensorboard to >=2.15 and tensorboardX to >=2.6

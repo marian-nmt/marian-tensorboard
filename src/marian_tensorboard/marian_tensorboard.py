@@ -111,7 +111,7 @@ class MarianLogParser(object):
             r"(?P<metric>[A-z|-]+)[\s]+(?P<value>[\d\.]+)(?: \* (?P<disp_labels>[\d,]+) \@ (?P<batch_labels>[\d,]+) after (?P<total_labels>[\d,]+))?.*?"
             # Cost 0.14988677 * 24,252,140 @ 4,877,125 after 211,752,292,869
             r"(?P<wordspersecond>[\d\.]+) words/s.*?"  #
-            r"(?P<gradientnorm>[\d\.]+) :.*?"  #
+            r"(?:gNorm (?P<gradientnorm>[\d\.]+) :.*?)?"  # gNorm 4.9754 : (optional, absent in older Marian versions)
             r"L\.r\.[\s](?P<learnrate>[\d\.]+e-[\d]+)"  # L.r. 1.234-05
         )
         self.valid_re = re.compile(
@@ -177,7 +177,7 @@ class MarianLogParser(object):
             total_labels = self._get_group_num(m, "total_labels")
 
             wps = float(m.group("wordspersecond"))
-            gradient_norm = float(m.group("gradientnorm"))
+            gradient_norm = self._get_group_num(m, "gradientnorm", cast_to=float)
             learnrate = float(m.group("learnrate"))
 
             if self.step == "updates":
@@ -244,13 +244,14 @@ class MarianLogParser(object):
                 f"train/learning_rate",
                 learnrate,
             )
-            yield (
-                "scalar",
-                self.wall_time(_date + " " + _time),
-                self.last_step,
-                f"train/gradient_norm",
-                gradient_norm,
-            )
+            if gradient_norm is not None:
+                yield (
+                    "scalar",
+                    self.wall_time(_date + " " + _time),
+                    self.last_step,
+                    f"train/gradient_norm",
+                    gradient_norm,
+                )
             yield (
                 "scalar",
                 self.wall_time(_date + " " + _time),
@@ -322,27 +323,70 @@ class AzureMLMetricsWriter(LogWriter):
 class MLFlowTrackingWriter(LogWriter):
     """Writing logs for MLflow Tracking."""
 
+    # Maximum number of metrics to buffer before flushing via log_batch
+    BATCH_SIZE = 500
+
     def __init__(self):
         import mlflow
+        from mlflow.entities import Metric
 
+        self.mlflow = mlflow
+        self.Metric = Metric
+        self.client = mlflow.tracking.MlflowClient()
         self.run_id = None
-        logger.info("Autologging to MLflow...")
+        self._metric_buffer = []
+        logger.info("Connecting to MLflow...")
         try:
-            mlflow.autolog()
-            self.run_id = mlflow.active_run().info.run_id
-            logger.info(f"MLflow RunID: {run_id}")
-        except:
-            logger.warning("Could not autolog or extract MLflow run ID")
+            # On Azure ML, MLFLOW_RUN_ID is set in the environment and
+            # mlflow.start_run() picks it up automatically along with
+            # MLFLOW_TRACKING_URI and MLFLOW_EXPERIMENT_NAME/ID.
+            run_id_env = os.environ.get("MLFLOW_RUN_ID", None)
+            if run_id_env:
+                logger.info(f"Resuming MLflow run from env MLFLOW_RUN_ID={run_id_env}")
+                self.run = mlflow.start_run(run_id=run_id_env)
+            else:
+                self.run = mlflow.start_run()
+            self.run_id = self.run.info.run_id
+            logger.info(f"MLflow RunID: {self.run_id}")
+        except Exception as e:
+            logger.warning(f"Could not start or connect to MLflow run: {e}")
 
     def write(self, type, time, update, metric, value):
         if not self.run_id:
             return
-        if type == "scalar":
-            mlflow.log_metric(metric, value, step=update)
-        elif type == "text":
-            mlflow.log_param(metric, value)
-        else:
-            pass
+        try:
+            if type == "scalar":
+                # Buffer metrics and flush in batches for efficiency;
+                # uses MlflowClient.log_batch() to send many metrics in
+                # a single HTTP call instead of one call per metric.
+                timestamp = int((time or 0) * 1000)
+                self._metric_buffer.append(
+                    self.Metric(key=metric, value=value, timestamp=timestamp, step=update)
+                )
+                if len(self._metric_buffer) >= self.BATCH_SIZE:
+                    self.flush()
+            elif type == "text":
+                # MLflow params are immutable; fall back to tags if already set.
+                try:
+                    self.mlflow.log_param(metric, value)
+                except self.mlflow.exceptions.MlflowException:
+                    logger.debug(f"Param '{metric}' already set, logging as tag instead")
+                    self.mlflow.set_tag(metric, value)
+            else:
+                pass
+        except Exception as e:
+            logger.warning(f"MLflow logging error for '{metric}': {e}")
+
+    def flush(self):
+        """Flush buffered metrics to MLflow in a single batch call."""
+        if not self._metric_buffer or not self.run_id:
+            return
+        try:
+            self.client.log_batch(run_id=self.run_id, metrics=self._metric_buffer)
+            logger.debug(f"Flushed {len(self._metric_buffer)} metrics to MLflow")
+        except Exception as e:
+            logger.warning(f"MLflow batch logging error: {e}")
+        self._metric_buffer = []
 
 
 class ConversionJob(threading.Thread):
@@ -400,6 +444,11 @@ class ConversionJob(threading.Thread):
                     logger.debug(f"{self.log_file}:{line_no} produced {log_tuple}")
                     for writer in writers:
                         writer.write(*log_tuple)
+
+            # Flush any buffered metrics in writers that support batching
+            for writer in writers:
+                if hasattr(writer, 'flush'):
+                    writer.flush()
 
             if first:
                 logger.info(f"Finished processing logs for {self.log_file}")
@@ -482,6 +531,9 @@ def main():
             for job in jobs:
                 job.join()
             logger.info("Done")
+            # Exit if there is no TensorBoard server to keep alive
+            if "tb" not in args.tool or args.port <= 0:
+                return
 
         # --offline simply means that the log file is not monitored for updates,
         # but the TensorBoard server still can be started for the user
@@ -536,7 +588,7 @@ def parse_user_args():
         nargs="+",
         help="set visualization tools: tb, azureml, default: tb",
         # Note that "mlflow" is not yet fully supported
-        choices=["tb", "azureml"],
+        choices=["tb", "azureml", "mlflow"],
     )
     parser.add_argument(
         "-w", "--work-dir", help="TensorBoard logging directory, default: logdir"
@@ -609,7 +661,7 @@ def parse_user_args():
     if args.tool is None:
         args.tool = []
 
-    if "azureml" in args.tool or "mlflow" in args.tool:
+    if "azureml" in args.tool:
         # Try to set TensorBoard logdir to the one set on Azure ML
         if not args.work_dir:
             args.work_dir = os.getenv("AZUREML_TB_PATH", None)
@@ -632,6 +684,13 @@ def parse_user_args():
                     "Could not log into AzureML, but it was the only tool selected, exit"
                 )
                 sys.exit(os.EX_UNAVAILABLE)
+
+    if "mlflow" in args.tool:
+        mlflow_run_id = os.getenv("MLFLOW_RUN_ID", None)
+        if mlflow_run_id:
+            logger.info(f"MLflow run ID from env: {mlflow_run_id}")
+        else:
+            logger.info("No MLFLOW_RUN_ID set; MLflow will create a new run")
 
     # If none tool was specified in arguments, add TensorBoard regardless if
     # Azure ML was detected or not

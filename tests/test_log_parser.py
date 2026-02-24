@@ -15,11 +15,11 @@ LOG_LINES = (
 
 EXPECTED_OUTPUTS = (
     [
-        ('scalar', 1553525514, 1000, 'train/epoch', 1),
+        ('scalar', 1553525514, 1000, 'train/epoch', 1.0),
         ('scalar', 1553525514, 1000, 'train/Cost', 7.95987511),
-        ('scalar', 1553525514, 1000, 'train/update_sent', 1269755),
-        ('scalar', 1553525514, 1000, 'train/total_sent', 1269755),
-        ('scalar', 1553525514, 1000, 'train/learn_rate', 0.0000125),
+        ('scalar', 1553525514, 1000, 'train/total_sentences', 1269755),
+        ('scalar', 1553525514, 1000, 'train/learning_rate', 1.25e-05),
+        ('scalar', 1553525514, 1000, 'train/words_per_second', 17289.59),
     ],
     [
         ('scalar', 1553531853, 5000, 'valid/ce-mean-words', 5.21277),
@@ -40,10 +40,10 @@ EXPECTED_OUTPUTS = (
         ('scalar', 1651442049, 20785, 'train/words_per_second', 1193424.53),
     ],
     [
-        ('scalar', 1677584396, 3000, 'train/epoch', 1),
+        ('scalar', 1677584396, 3000, 'train/epoch', 1.0),
         ('scalar', 1677584396, 3000, 'train/Cost', 5.96917725),
         ('scalar', 1677584396, 3000, 'train/total_sentences', 3735044),
-        ('scalar', 1677584396, 3000, 'train/learning_rate', 0.00005625),
+        ('scalar', 1677584396, 3000, 'train/learning_rate', 5.625e-05),
         ('scalar', 1677584396, 3000, 'train/gradient_norm', 1.7447),
         ('scalar', 1677584396, 3000, 'train/words_per_second', 69366.92),
     ],
