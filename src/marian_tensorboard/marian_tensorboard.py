@@ -361,7 +361,9 @@ class MLFlowTrackingWriter(LogWriter):
                 # a single HTTP call instead of one call per metric.
                 timestamp = int((time or 0) * 1000)
                 self._metric_buffer.append(
-                    self.Metric(key=metric, value=value, timestamp=timestamp, step=update)
+                    self.Metric(
+                        key=metric, value=value, timestamp=timestamp, step=update
+                    )
                 )
                 if len(self._metric_buffer) >= self.BATCH_SIZE:
                     self.flush()
@@ -370,7 +372,9 @@ class MLFlowTrackingWriter(LogWriter):
                 try:
                     self.mlflow.log_param(metric, value)
                 except self.mlflow.exceptions.MlflowException:
-                    logger.debug(f"Param '{metric}' already set, logging as tag instead")
+                    logger.debug(
+                        f"Param '{metric}' already set, logging as tag instead"
+                    )
                     self.mlflow.set_tag(metric, value)
             else:
                 pass
