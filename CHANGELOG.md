@@ -1,5 +1,10 @@
 # Changelog
 
+## Version 0.3.1 (25/2/2026)
+
+- Updated minimum Python version to 3.9
+- Fixed GitHub Actions workflow (quoted Python version, added setup-python step)
+
 ## Version 0.3.0 (24/2/2026)
 
 - Added support for MLFlow with `mlflow>=3.10` and `azureml-mlflow>=1.60` as dependencies

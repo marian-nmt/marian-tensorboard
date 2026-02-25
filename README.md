@@ -13,6 +13,11 @@ Using PyPI:
 
     pip install marian-tensorboard
 
+With optional extras for MLflow or Azure ML support:
+
+    pip install marian-tensorboard[mlflow]    # requires Python >= 3.10
+    pip install marian-tensorboard[azureml]
+
 Locally:
 
     git clone https://github.com/marian-nmt/marian-tensorboard
